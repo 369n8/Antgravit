@@ -1,0 +1,24 @@
+{
+  "name": "projects",
+  "version": "1.0.0",
+  "description": "Este projeto segue a arquitetura definida no arquivo `Agente.md`, separando preocupações em três camadas:",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/369n8/Antgravit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/369n8/Antgravit/issues"
+  },
+  "homepage": "https://github.com/369n8/Antgravit#readme",
+  "devDependencies": {
+    "supabase": "^2.76.16"
+  }
+}
