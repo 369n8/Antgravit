@@ -1,0 +1,15 @@
+# Intermediários
+.tmp/
+
+# Sensível
+.env
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+vcl/
+venv/
+ENV/
