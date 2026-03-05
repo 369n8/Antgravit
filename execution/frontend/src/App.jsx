@@ -1,12 +1,40 @@
+import { useState } from 'react';
 import './App.css';
+import { useAuth } from './hooks/useAuth';
+import Login       from './pages/Login';
+import Sidebar     from './components/Sidebar';
+import Dashboard   from './pages/Dashboard';
+import Vehicles    from './pages/Vehicles';
+import Tenants     from './pages/Tenants';
+import Payments    from './pages/Payments';
+import Maintenance from './pages/Maintenance';
 
-function App() {
+const PAGES = { dashboard: Dashboard, vehicles: Vehicles, tenants: Tenants, payments: Payments, maintenance: Maintenance };
+const TITLES = { dashboard: 'Dashboard', vehicles: 'Veículos', tenants: 'Locatários', payments: 'Pagamentos', maintenance: 'Manutenção' };
+
+export default function App() {
+  const { user, loading } = useAuth();
+  const [page, setPage]   = useState('dashboard');
+
+  if (loading) return (
+    <div className="loading" style={{ minHeight: '100vh' }}>
+      <div className="spinner"/> Carregando...
+    </div>
+  );
+
+  if (!user) return <Login />;
+
+  const Page = PAGES[page];
+
   return (
-    <div className="app">
-      <h1>FrotaApp</h1>
-      <p>Frontend inicializado. Conecte ao Supabase para começar.</p>
+    <div className="layout">
+      <Sidebar page={page} onNavigate={setPage} />
+      <div className="main-content">
+        <div className="topbar">
+          <span className="topbar-title">{TITLES[page]}</span>
+        </div>
+        <Page />
+      </div>
     </div>
   );
 }
-
-export default App;
