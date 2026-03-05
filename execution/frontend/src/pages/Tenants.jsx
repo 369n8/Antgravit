@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { generateContractPDF } from '../components/ContractGenerator';
 
 export default function Tenants() {
   const [rows, setRows]       = useState([]);
@@ -42,6 +43,7 @@ export default function Tenants() {
                 <th>Aluguel / sem.</th>
                 <th>Status</th>
                 <th>Blacklist</th>
+                <th>Contrato</th>
               </tr>
             </thead>
             <tbody>
@@ -68,6 +70,14 @@ export default function Tenants() {
                     {t.blacklisted
                       ? <span className="badge badge-red">Blacklist</span>
                       : <span style={{ color: 'var(--muted)', fontSize: 13 }}>—</span>}
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => generateContractPDF(t, t.vehicles)}
+                      style={{ padding:'5px 12px', borderRadius:6, border:'1px solid var(--border)', background:'transparent', color:'var(--accent)', fontSize:12, cursor:'pointer', whiteSpace:'nowrap' }}
+                    >
+                      PDF
+                    </button>
                   </td>
                 </tr>
               ))}
