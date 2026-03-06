@@ -1,18 +1,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+
 :root {
-  --bg:        #0f1117;
-  --surface:   #161b22;
-  --card:      #1c2128;
-  --border:    #30363d;
-  --text:      #e6edf3;
-  --muted:     #8b949e;
-  --accent:    #388bfd;
-  --green:     #3fb950;
-  --orange:    #d29922;
-  --red:       #f85149;
+  --bg:        #080d1a;
+  --surface:   #0f172a;
+  --card:      #0f172a;
+  --border:    #334155;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --accent:    #6366f1;
+  --green:     #22c55e;
+  --orange:    #f59e0b;
+  --red:       #ef4444;
   --radius:    8px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'DM Mono', 'Courier New', monospace;
   font-size: 14px;
   color: var(--text);
   background: var(--bg);

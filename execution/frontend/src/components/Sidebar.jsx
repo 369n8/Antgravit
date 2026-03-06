@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
@@ -11,34 +12,269 @@ const NAV = [
 
 export default function Sidebar({ page, onNavigate }) {
   const { user } = useAuth();
+  const [showTg, setShowTg]           = useState(false);
+  const [tgInput, setTgInput]         = useState('');
+  const [tgSaved, setTgSaved]         = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [tgError, setTgError]         = useState('');
+
+  /* Carrega o username salvo */
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('clients')
+      .select('telegram_username')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.telegram_username) {
+          setTgSaved(data.telegram_username);
+          setTgInput(data.telegram_username);
+        }
+      });
+  }, [user]);
+
+  const handleSave = async () => {
+    const username = tgInput.trim().replace(/^@/, '');
+    if (!username) { setTgError('Digite seu @username do Telegram.'); return; }
+    setSaving(true); setTgError('');
+    const { error } = await supabase
+      .from('clients')
+      .update({ telegram_username: username })
+      .eq('id', user.id);
+    setSaving(false);
+    if (error) { setTgError(error.message); return; }
+    setTgSaved(username);
+    setShowTg(false);
+  };
+
+  const isConnected = !!tgSaved;
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <h2>FrotaApp</h2>
-        <span>Gestão de Frotas</span>
-      </div>
+    <>
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <h2>FrotaApp</h2>
+          <span>Gestão de Frotas</span>
+        </div>
 
-      <nav className="sidebar-nav">
-        {NAV.map(item => (
+        <nav className="sidebar-nav">
+          {NAV.map(item => (
+            <button
+              key={item.id}
+              className={`nav-item${page === item.id ? ' active' : ''}`}
+              onClick={() => onNavigate(item.id)}
+            >
+              <item.icon size={16} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          {/* Botão Conectar Telegram */}
           <button
-            key={item.id}
-            className={`nav-item${page === item.id ? ' active' : ''}`}
-            onClick={() => onNavigate(item.id)}
+            onClick={() => { setShowTg(true); setTgError(''); }}
+            style={{
+              width: '100%',
+              marginBottom: 10,
+              padding: '9px 12px',
+              borderRadius: 10,
+              border: `1px solid ${isConnected ? '#22c55e40' : '#6366f140'}`,
+              background: isConnected ? '#22c55e0d' : '#6366f10d',
+              color: isConnected ? '#22c55e' : '#818cf8',
+              fontFamily: 'inherit',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
           >
-            <item.icon size={16} />
-            {item.label}
+            <IconTelegram size={15} />
+            {isConnected ? `@${tgSaved}` : 'Conectar Telegram'}
+            {isConnected && (
+              <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+            )}
           </button>
-        ))}
-      </nav>
 
-      <div className="sidebar-footer">
-        <div className="user-email">{user?.email}</div>
-        <button className="btn-logout" onClick={() => supabase.auth.signOut()}>
-          Sair
-        </button>
-      </div>
-    </aside>
+          <div className="user-email">{user?.email}</div>
+          <button className="btn-logout" onClick={() => supabase.auth.signOut()}>
+            Sair
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Modal Telegram — estilo Bento Grid ── */}
+      {showTg && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setShowTg(false); }}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(8,13,26,.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 300, padding: 20,
+          }}
+        >
+          <div style={{
+            background: '#fff',
+            borderRadius: 24,
+            boxShadow: '0 24px 60px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.08)',
+            width: '100%',
+            maxWidth: 420,
+            overflow: 'hidden',
+          }}>
+            {/* Cabeçalho colorido */}
+            <div style={{
+              background: 'linear-gradient(135deg,#229ED9,#1a7cb8)',
+              padding: '28px 28px 24px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: 'rgba(255,255,255,.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <IconTelegram size={24} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>Conectar Telegram</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.7)', marginTop: 2 }}>Receba alertas e cobranças pelo bot</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento grid de benefícios */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: '20px 24px 0' }}>
+              {[
+                { ic: '🔔', t: 'Alertas de vencimento', d: 'IPVA, seguro, revisão' },
+                { ic: '💰', t: 'Cobrança automática', d: 'Notificações de pagamento' },
+                { ic: '🚗', t: 'Status da frota', d: 'Atualizações em tempo real' },
+                { ic: '📋', t: 'Relatórios rápidos', d: 'Resumo diário direto no chat' },
+              ].map((b, i) => (
+                <div key={i} style={{
+                  background: '#F5F5F0',
+                  borderRadius: 14,
+                  padding: '12px 13px',
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{b.ic}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{b.t}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{b.d}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Input + ação */}
+            <div style={{ padding: '20px 24px 24px' }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                Seu @username do Telegram
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 14, fontWeight: 600 }}>@</span>
+                <input
+                  autoFocus
+                  value={tgInput.replace(/^@/, '')}
+                  onChange={e => setTgInput(e.target.value.replace(/^@/, ''))}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  placeholder="username"
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px 11px 30px',
+                    borderRadius: 12,
+                    border: `1.5px solid ${tgError ? '#ef4444' : '#e2e8f0'}`,
+                    background: '#F5F5F0',
+                    fontSize: 14,
+                    color: '#1e293b',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                    transition: 'border-color .15s',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = '#229ED9'; }}
+                  onBlur={e => { e.target.style.borderColor = tgError ? '#ef4444' : '#e2e8f0'; }}
+                />
+              </div>
+
+              {tgError && (
+                <div style={{ color: '#ef4444', fontSize: 12, marginTop: 6 }}>⚠ {tgError}</div>
+              )}
+
+              <div style={{ display: 'flex', gap: 9, marginTop: 16 }}>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: 'linear-gradient(135deg,#229ED9,#1a7cb8)',
+                    color: '#fff',
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    opacity: saving ? .7 : 1,
+                    transition: 'opacity .15s',
+                  }}
+                >
+                  {saving ? 'Salvando...' : isConnected ? '✓ Atualizar' : 'Conectar'}
+                </button>
+                {isConnected && (
+                  <button
+                    onClick={async () => {
+                      await supabase.from('clients').update({ telegram_username: null }).eq('id', user.id);
+                      setTgSaved(''); setTgInput(''); setShowTg(false);
+                    }}
+                    style={{
+                      padding: '11px 16px',
+                      borderRadius: 12,
+                      border: '1.5px solid #e2e8f0',
+                      background: 'transparent',
+                      color: '#94a3b8',
+                      fontFamily: 'inherit',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Desconectar
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowTg(false)}
+                  style={{
+                    padding: '11px 16px',
+                    borderRadius: 12,
+                    border: '1.5px solid #e2e8f0',
+                    background: 'transparent',
+                    color: '#94a3b8',
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Ícones ── */
+
+function IconTelegram({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L8.32 14.617l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.828.942z"/>
+    </svg>
   );
 }
 

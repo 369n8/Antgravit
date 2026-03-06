@@ -41,7 +41,7 @@ export default function App() {
             Blacklist
           </button>
         </div>
-        <Page />
+        <Page onNavigate={setPage} />
       </div>
 
       {showBlacklist && <BlacklistManager onClose={() => setShowBlacklist(false)} />}
