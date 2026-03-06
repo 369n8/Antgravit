@@ -269,6 +269,24 @@ const AI_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "gerar_comprovante",
+      description: [
+        "OBRIGATÓRIO usar quando o admin pedir 'gerar comprovante', 'comprovante de check-in', 'voucher' ou 'recibo de entrega/devolução' para um veículo.",
+        "Busca o último check-in do veículo e retorna o campo 'comprovante' com o texto formatado pronto para enviar.",
+        "Envie o campo 'comprovante' do resultado VERBATIM, sem alterar nenhuma palavra ou linha.",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          vehicle_plate: { type: "string", description: "Placa do veículo (ex: BRA2E25). Obrigatório." },
+        },
+        required: ["vehicle_plate"],
+      },
+    },
+  },
 ];
 
 // ── Executor de Ferramentas ───────────────────────────────────────────────────
@@ -493,6 +511,60 @@ async function executeTool(
     };
   }
 
+  if (name === "gerar_comprovante") {
+    const rawPlate = (args.vehicle_plate as string) ?? "";
+    const plate = rawPlate.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+
+    const { data: veh } = await supabase
+      .from("vehicles")
+      .select("id, plate, brand, model")
+      .ilike("plate", plate)
+      .limit(1)
+      .single();
+
+    if (!veh) return { error: `Veículo com placa "${rawPlate}" não encontrado.` };
+
+    const { data: ck } = await supabase
+      .from("checkins")
+      .select("checkin_type, mileage, fuel_level, photos, notes, created_at, tenants(name)")
+      .eq("vehicle_id", veh.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!ck) return { error: `Nenhum check-in registrado para o veículo ${veh.plate}.` };
+
+    const FUEL: Record<number, string> = { 100: "Cheio", 75: "3/4", 50: "Meio Tanque", 25: "1/4", 10: "Reserva" };
+    const fuelLabel = FUEL[ck.fuel_level as number] ?? `${ck.fuel_level}%`;
+
+    const dt = new Date(ck.created_at as string);
+    const dateStr = dt.toLocaleDateString("pt-BR") + " às " +
+      dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+    const tipo   = ck.checkin_type === "entrega" ? "Entrega" : "Devolução";
+    const kmStr  = ck.mileage ? Number(ck.mileage).toLocaleString("pt-BR") + " km" : "Não registrada";
+    const photos = Array.isArray(ck.photos) && (ck.photos as unknown[]).length > 0
+      ? `${(ck.photos as unknown[]).length} foto(s) documentadas no servidor seguro.`
+      : "Documentadas no servidor seguro.";
+
+    const lines = [
+      `*✅ COMPROVANTE DE CHECK-IN - MYFROTA*`,
+      ``,
+      `🚗 *Veículo:* ${veh.plate} — ${veh.brand} ${veh.model}`,
+      `📋 *Tipo:* ${tipo}`,
+      `📅 *Data:* ${dateStr}`,
+      `🛣️ *KM:* ${kmStr}`,
+      `⛽ *Tanque:* ${fuelLabel}`,
+      `📸 *Fotos:* ${photos}`,
+    ];
+    if (ck.notes) lines.push(`📝 *Obs:* ${ck.notes}`);
+    if ((ck.tenants as { name?: string })?.name) lines.push(`👤 *Motorista:* ${(ck.tenants as { name: string }).name}`);
+    lines.push(`---------------------------`);
+    lines.push(`_Favor conferir os dados acima antes de iniciar a viagem._`);
+
+    return { ok: true, comprovante: lines.join("\n"), vehicle: veh.plate };
+  }
+
   return { error: `Ferramenta desconhecida: ${name}` };
 }
 
@@ -635,7 +707,8 @@ D. Motoristas/locatários → listar_locatarios. Pagamentos/dívidas → listar_
 E. Registrar multa → registrar_multa(vehicle_plate=...). Atualizar dados → atualizar_locatario / atualizar_pagamento.
 F. NUNCA invente dados. SEMPRE chame uma ferramenta antes de responder. NUNCA diga "não tenho acesso".
 G. Terminologia de combustível: "Cheio"=100%, "3/4"=75%, "Meio Tanque" ou "Meio"=50%, "1/4"=25%, "Reserva"=10%. fuel_level no banco é inteiro 0-100.
-H. Ao listar use marcadores (• veículo — dado — status). Responda em português, direto, executivo.`;
+H. Ao listar use marcadores (• veículo — dado — status). Responda em português, direto, executivo.
+I. "Gerar comprovante", "comprovante de check-in", "voucher", "recibo" → gerar_comprovante(vehicle_plate=...). Envie o campo 'comprovante' do resultado EXATAMENTE como retornado, sem alterar nenhuma linha ou caractere.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },
