@@ -21,19 +21,21 @@ const S = {
 function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000); }
 
 export default function Payments() {
-  const [rows, setRows]       = useState([]);
-  const [tenants, setTenants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState('all');
-  const [showAdd, setShowAdd] = useState(false);
-  const [np, setNp]           = useState(BLANK);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState(null);
+  const [rows, setRows]         = useState([]);
+  const [tenants, setTenants]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [filter, setFilter]     = useState('all');
+  const [showAdd, setShowAdd]   = useState(false);
+  const [np, setNp]             = useState(BLANK);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState(null);
+  const [sendingIds, setSendingIds] = useState(new Set());
+  const [toast, setToast]       = useState(null);
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      supabase.from('payments').select('*, tenants(name, phone)').order('due_date', { ascending: false }),
+      supabase.from('payments').select('*, tenants(name, phone, telegram_username)').order('due_date', { ascending: false }),
       supabase.from('tenants').select('id, name').eq('status', 'ativo'),
     ]).then(([{ data: pays }, { data: tens }]) => {
       setRows(pays ?? []);
@@ -43,6 +45,26 @@ export default function Payments() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const showToast = (msg, color = '#22c55e') => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const sendBilling = async (p) => {
+    if (sendingIds.has(p.id)) return;
+    setSendingIds(prev => new Set(prev).add(p.id));
+    const { error: fnErr } = await supabase.functions.invoke('telegram-billing', {
+      body: {
+        client_name:       p.tenants?.name ?? 'Locatário',
+        amount_due:        p.value_amount,
+        telegram_username: p.tenants?.telegram_username ?? '',
+      },
+    });
+    setSendingIds(prev => { const s = new Set(prev); s.delete(p.id); return s; });
+    if (fnErr) showToast('Erro ao enviar cobrança', '#ef4444');
+    else showToast('Cobrança enviada');
+  };
 
   const togglePaid = async (id, current) => {
     const update = { paid_status: !current };
@@ -77,8 +99,16 @@ export default function Payments() {
   const totalPaid     = rows.filter(r =>  r.paid_status).reduce((s, r) => s + (r.value_amount || 0), 0);
   const overdueCount  = rows.filter(r => !r.paid_status && r.due_date && daysUntil(r.due_date) < 0).length;
 
+  const btnCobrar = { padding: '5px 12px', borderRadius: 10, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' };
+
   return (
     <div style={{ padding: 24 }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.color, color: '#fff', padding: '10px 22px', borderRadius: 12, fontSize: 14, fontWeight: 600, zIndex: 999, boxShadow: '0 4px 24px rgba(0,0,0,.4)', pointerEvents: 'none' }}>
+          {toast.msg}
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>💰 Pagamentos</div>
@@ -137,6 +167,15 @@ export default function Payments() {
                   <div style={S.bdg(p.paid_status ? '#22c55e' : '#ef4444')}>
                     {p.paid_status ? 'Pago' : 'Pendente'}
                   </div>
+                  {isLate && p.tenants?.telegram_username && (
+                    <button
+                      style={{ ...btnCobrar, ...(sendingIds.has(p.id) ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                      onClick={() => sendBilling(p)}
+                      disabled={sendingIds.has(p.id)}
+                    >
+                      {sendingIds.has(p.id) ? 'Enviando...' : '📱 Cobrar'}
+                    </button>
+                  )}
                   <button
                     style={{ ...S.btn(p.paid_status ? 'g' : 's'), padding: '5px 12px', fontSize: 12 }}
                     onClick={() => togglePaid(p.id, p.paid_status)}
