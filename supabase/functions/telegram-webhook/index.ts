@@ -194,30 +194,35 @@ async function runAdminAgent(
   ];
 
   for (let round = 0; round < 8; round++) {
-    console.log(`[agent] round ${round}, messages: ${messages.length}`);
+    console.log(`[agent] round ${round}, model: ${AI_MODEL}, messages: ${messages.length}`);
+
+    const reqBody = {
+      model:       AI_MODEL,
+      messages,
+      tools:       AI_TOOLS,
+      tool_choice: "auto",
+      max_tokens:  1024,
+      temperature: 0.3,
+    };
+
+    console.log(`[agent] POST https://openrouter.ai/api/v1/chat/completions`);
+    console.log(`[agent] body (truncated): ${JSON.stringify(reqBody).slice(0, 400)}`);
 
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization":  `Bearer ${OPENROUTER_KEY}`,
-        "Content-Type":   "application/json",
-        "HTTP-Referer":   "https://frotaapp.app",
-        "X-Title":        "FrotaApp Admin Agent",
+        "Authorization": `Bearer ${OPENROUTER_KEY}`,
+        "Content-Type":  "application/json",
+        "HTTP-Referer":  "https://frotaapp.app",
+        "X-Title":       "FrotaApp Admin Agent",
       },
-      body: JSON.stringify({
-        model:       AI_MODEL,
-        messages,
-        tools:       AI_TOOLS,
-        tool_choice: "auto",
-        max_tokens:  1024,
-        temperature: 0.3,
-      }),
+      body: JSON.stringify(reqBody),
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[agent] OpenRouter HTTP ${res.status}:`, errText);
-      return `Erro ao chamar IA (${res.status}): ${errText.slice(0, 200)}`;
+      console.error(`[agent] OpenRouter HTTP ${res.status}: ${errText}`);
+      return `Erro ao chamar IA [${res.status}]: ${errText.slice(0, 300)}`;
     }
 
     const completion = await res.json();
