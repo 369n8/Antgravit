@@ -30,18 +30,19 @@ serve(async (req) => {
     const body = await req.json();
     console.log("[telegram-billing] payload:", JSON.stringify(body));
 
-    const { client_name, amount_due, telegram_username } = body;
+    const { client_name, amount_due, telegram_username, telegram_chat_id } = body;
 
-    if (!telegram_username) {
-      console.error("[telegram-billing] telegram_username missing in payload");
-      return json({ ok: false, error: "telegram_username is required" });
+    // Preferir chat_id numérico (obtido via /start); fallback para @username
+    let chatId: number | string | null = telegram_chat_id ?? null;
+    if (!chatId) {
+      if (!telegram_username) {
+        console.error("[telegram-billing] neither chat_id nor username in payload");
+        return json({ ok: false, error: "telegram_chat_id ou telegram_username é obrigatório" });
+      }
+      chatId = String(telegram_username).startsWith("@")
+        ? telegram_username
+        : `@${telegram_username}`;
     }
-
-    // Telegram Bot API aceita @username para canais; para usuarios privados
-    // o usuario deve ter iniciado conversa com o bot primeiro (/start).
-    const chatId = String(telegram_username).startsWith("@")
-      ? telegram_username
-      : `@${telegram_username}`;
 
     const amountFormatted =
       typeof amount_due === "number"
@@ -53,7 +54,7 @@ serve(async (req) => {
       `Passando para informar que ha um valor de *R$ ${amountFormatted}* em aberto na sua locacao.\n\n` +
       `Por favor, regularize o pagamento o quanto antes. Qualquer duvida, estamos a disposicao! 🚗`;
 
-    console.log("[telegram-billing] sending to:", chatId);
+    console.log("[telegram-billing] sending to chatId:", chatId);
 
     const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",

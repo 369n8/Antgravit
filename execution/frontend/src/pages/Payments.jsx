@@ -35,7 +35,7 @@ export default function Payments() {
   const load = () => {
     setLoading(true);
     Promise.all([
-      supabase.from('payments').select('*, tenants(name, phone, telegram_username)').order('due_date', { ascending: false }),
+      supabase.from('payments').select('*, tenants(name, phone, telegram_username, telegram_chat_id)').order('due_date', { ascending: false }),
       supabase.from('tenants').select('id, name').eq('status', 'ativo'),
     ]).then(([{ data: pays }, { data: tens }]) => {
       setRows(pays ?? []);
@@ -56,9 +56,10 @@ export default function Payments() {
     setSendingIds(prev => new Set(prev).add(p.id));
     const { data, error: fnErr } = await supabase.functions.invoke('telegram-billing', {
       body: {
-        client_name:       p.tenants?.name ?? 'Locatário',
-        amount_due:        p.value_amount,
-        telegram_username: p.tenants?.telegram_username ?? '',
+        client_name:        p.tenants?.name ?? 'Locatário',
+        amount_due:         p.value_amount,
+        telegram_chat_id:   p.tenants?.telegram_chat_id ?? null,
+        telegram_username:  p.tenants?.telegram_username ?? '',
       },
     });
     setSendingIds(prev => { const s = new Set(prev); s.delete(p.id); return s; });
