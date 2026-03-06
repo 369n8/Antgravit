@@ -45,6 +45,16 @@ export default function Tenants() {
   const [editTenant, setEditTenant] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const BOT_USERNAME = 'Myfrot_bot';
+  const activationLink = (tenantId) => `https://t.me/${BOT_USERNAME}?start=${tenantId}`;
+
+  const copyLink = (tenantId) => {
+    navigator.clipboard.writeText(activationLink(tenantId));
+    setCopiedId(tenantId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const ntf = (k, v) => setNt(p => ({ ...p, [k]: v }));
   const etf = (k, v) => setEt(p => ({ ...p, [k]: v }));
@@ -258,6 +268,16 @@ export default function Tenants() {
                   </div>
                 )}
 
+                {/* Status Telegram */}
+                {t.telegram_username && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '5px 8px', borderRadius: 8, background: '#080d1a' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.telegram_chat_id ? '#229ED9' : '#475569', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: t.telegram_chat_id ? '#229ED9' : '#64748b' }}>
+                      {t.telegram_chat_id ? `Telegram vinculado` : `@${t.telegram_username} — pendente`}
+                    </span>
+                  </div>
+                )}
+
                 {/* Mini-cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
@@ -280,6 +300,15 @@ export default function Tenants() {
                   >
                     📋 PDF
                   </button>
+                  {!t.telegram_chat_id && (
+                    <button
+                      title="Copiar link de ativação do Telegram"
+                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #334155', background: copiedId === t.id ? '#22c55e22' : '#1e293b', color: copiedId === t.id ? '#22c55e' : '#64748b', fontFamily: 'inherit', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      onClick={() => copyLink(t.id)}
+                    >
+                      {copiedId === t.id ? '✓ Copiado' : '🔗 Link'}
+                    </button>
+                  )}
                   <button
                     style={{ ...S.btn('p'), padding: '6px 12px', fontSize: 12 }}
                     onClick={() => openEdit(t)}

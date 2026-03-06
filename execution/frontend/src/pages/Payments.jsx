@@ -31,6 +31,10 @@ export default function Payments() {
   const [error, setError]       = useState(null);
   const [sendingIds, setSendingIds] = useState(new Set());
   const [toast, setToast]       = useState(null);
+  const [activationModal, setActivationModal] = useState(null); // { name, link, phone }
+
+  const BOT_USERNAME = 'Myfrot_bot';
+  const activationLink = (tenantId) => `https://t.me/${BOT_USERNAME}?start=${tenantId}`;
 
   const load = () => {
     setLoading(true);
@@ -52,13 +56,23 @@ export default function Payments() {
   };
 
   const sendBilling = async (p) => {
+    // Se não tem chat_id vinculado, abrir modal de ativação em vez de tentar enviar
+    if (!p.tenants?.telegram_chat_id) {
+      setActivationModal({
+        name:  p.tenants?.name ?? 'Locatário',
+        link:  activationLink(p.tenant_id),
+        phone: p.tenants?.phone ?? null,
+      });
+      return;
+    }
+
     if (sendingIds.has(p.id)) return;
     setSendingIds(prev => new Set(prev).add(p.id));
     const { data, error: fnErr } = await supabase.functions.invoke('telegram-billing', {
       body: {
         client_name:        p.tenants?.name ?? 'Locatário',
         amount_due:         p.value_amount,
-        telegram_chat_id:   p.tenants?.telegram_chat_id ?? null,
+        telegram_chat_id:   p.tenants?.telegram_chat_id,
         telegram_username:  p.tenants?.telegram_username ?? '',
       },
     });
@@ -154,7 +168,15 @@ export default function Payments() {
             return (
               <div key={p.id} style={S.row}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{p.tenants?.name ?? '—'}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {p.tenants?.name ?? '—'}
+                    {p.tenants?.telegram_username && (
+                      <span
+                        title={p.tenants?.telegram_chat_id ? 'Telegram vinculado' : 'Telegram pendente — clique em Cobrar para ativar'}
+                        style={{ width: 8, height: 8, borderRadius: '50%', background: p.tenants?.telegram_chat_id ? '#229ED9' : '#475569', flexShrink: 0, display: 'inline-block' }}
+                      />
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                     {p.week_label ?? '—'}
                     {p.due_date && (
@@ -174,11 +196,12 @@ export default function Payments() {
                   </div>
                   {isLate && p.tenants?.telegram_username && (
                     <button
-                      style={{ ...btnCobrar, ...(sendingIds.has(p.id) ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                      style={{ ...btnCobrar, ...(sendingIds.has(p.id) ? { opacity: 0.5, cursor: 'not-allowed' } : {}), ...(!p.tenants?.telegram_chat_id ? { color: '#64748b', borderStyle: 'dashed' } : {}) }}
                       onClick={() => sendBilling(p)}
                       disabled={sendingIds.has(p.id)}
+                      title={p.tenants?.telegram_chat_id ? 'Enviar cobrança via Telegram' : 'Telegram não vinculado — gerar link de ativação'}
                     >
-                      {sendingIds.has(p.id) ? 'Enviando...' : '📱 Cobrar'}
+                      {sendingIds.has(p.id) ? 'Enviando...' : p.tenants?.telegram_chat_id ? '📱 Cobrar' : '🔗 Ativar'}
                     </button>
                   )}
                   <button
@@ -193,6 +216,48 @@ export default function Payments() {
           })
         )}
       </div>
+
+      {/* Modal Ativação Telegram */}
+      {activationModal && (
+        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) setActivationModal(null); }}>
+          <div style={{ ...S.mbox, maxWidth: 420 }}>
+            <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>🔗</div>
+            <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 6 }}>
+              Telegram não vinculado
+            </div>
+            <div style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 20 }}>
+              <b style={{ color: '#e2e8f0' }}>{activationModal.name}</b> ainda não ativou o bot.<br />
+              Envie o link abaixo para ele clicar e vincular o perfil.
+            </div>
+
+            <div style={{ background: '#0a0f1e', border: '1px solid #334155', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#6366f1', wordBreak: 'break-all', marginBottom: 16 }}>
+              {activationModal.link}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              <button
+                style={{ ...S.btn('p'), justifyContent: 'center' }}
+                onClick={() => { navigator.clipboard.writeText(activationModal.link); showToast('Link copiado ✓'); }}
+              >
+                📋 Copiar Link
+              </button>
+              {activationModal.phone && (
+                <a
+                  href={`https://wa.me/${activationModal.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Para receber notificações de cobrança, clique no link e ative o bot:\n${activationModal.link}`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ ...S.btn('s'), justifyContent: 'center', textDecoration: 'none' }}
+                >
+                  💬 Enviar pelo WhatsApp
+                </a>
+              )}
+              <button style={{ ...S.btn('g'), justifyContent: 'center' }} onClick={() => setActivationModal(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Nova Cobrança */}
       {showAdd && (

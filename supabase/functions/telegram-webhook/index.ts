@@ -271,11 +271,34 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SVC_KEY);
 
-    // ── /start: vincular chat_id numérico ao perfil do locatário ─────────
+    // ── /start: vincular chat_id ao perfil do locatário ─────────────────
     if (text.startsWith("/start")) {
       let linked = false;
+      const startParam = text.split(" ")[1]?.trim(); // UUID do deep link
 
-      if (username) {
+      // Prioridade 1: deep link com UUID do locatário (t.me/bot?start=UUID)
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (startParam && UUID_RE.test(startParam)) {
+        const { data: tenant } = await supabase
+          .from("tenants")
+          .select("id, name")
+          .eq("id", startParam)
+          .single();
+
+        if (tenant) {
+          await supabase.from("tenants").update({ telegram_chat_id: chatId }).eq("id", tenant.id);
+          console.log(`[telegram-webhook] deep-link linked tenant ${tenant.id} → chat_id ${chatId}`);
+          await tgSend(
+            chatId,
+            `✅ Olá, *${tenant.name}*! Seu perfil foi vinculado com sucesso.\n\n` +
+            `Você receberá notificações de cobrança diretamente aqui. 🚗`,
+          );
+          linked = true;
+        }
+      }
+
+      // Prioridade 2: fallback por @username (fluxo manual)
+      if (!linked && username) {
         const { data: allTenants } = await supabase
           .from("tenants")
           .select("id, name, telegram_username")
@@ -286,13 +309,8 @@ serve(async (req) => {
         );
 
         if (matched) {
-          await supabase
-            .from("tenants")
-            .update({ telegram_chat_id: chatId })
-            .eq("id", matched.id);
-
-          console.log(`[telegram-webhook] linked @${username} → tenant ${matched.id} (chat_id: ${chatId})`);
-
+          await supabase.from("tenants").update({ telegram_chat_id: chatId }).eq("id", matched.id);
+          console.log(`[telegram-webhook] username linked @${username} → tenant ${matched.id}`);
           await tgSend(
             chatId,
             `✅ Olá, *${matched.name}*! Seu perfil foi vinculado com sucesso.\n\n` +
@@ -305,8 +323,8 @@ serve(async (req) => {
       if (!linked) {
         await tgSend(
           chatId,
-          `👋 Olá! Seu usuário *@${username}* não foi encontrado no sistema.\n\n` +
-          `Peça ao administrador para cadastrar seu @username no perfil de locatário.`,
+          `👋 Olá! Não foi possível vincular seu perfil automaticamente.\n\n` +
+          `Peça ao administrador para enviar o link de ativação correto.`,
         );
       }
 
