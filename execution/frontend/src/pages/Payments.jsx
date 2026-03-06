@@ -54,7 +54,7 @@ export default function Payments() {
   const sendBilling = async (p) => {
     if (sendingIds.has(p.id)) return;
     setSendingIds(prev => new Set(prev).add(p.id));
-    const { error: fnErr } = await supabase.functions.invoke('telegram-billing', {
+    const { data, error: fnErr } = await supabase.functions.invoke('telegram-billing', {
       body: {
         client_name:       p.tenants?.name ?? 'Locatário',
         amount_due:        p.value_amount,
@@ -62,8 +62,12 @@ export default function Payments() {
       },
     });
     setSendingIds(prev => { const s = new Set(prev); s.delete(p.id); return s; });
-    if (fnErr) showToast('Erro ao enviar cobrança', '#ef4444');
-    else showToast('Cobrança enviada');
+    if (fnErr || data?.ok === false) {
+      const msg = data?.error ?? fnErr?.message ?? 'Erro desconhecido';
+      showToast(`⚠ ${msg}`, '#ef4444');
+    } else {
+      showToast('Cobrança enviada ✓');
+    }
   };
 
   const togglePaid = async (id, current) => {
