@@ -23,7 +23,7 @@ function ptDate(d) { if (!d) return '—'; const [y,m,dd] = d.split('-'); return
 
 const MAINT_BLANK = { vehicle_id: '', event_type: 'expense', category: 'Revisão', date: '', description: '', value_amount: 0 };
 const INS_BLANK   = { vehicle_id: '', insurer: '', policy_number: '', pay_date: '', expiry_date: '', amount: 0, notes: '' };
-const FINE_BLANK  = { vehicle_id: '', tenant_id: '', amount: 0, date: '', description: '', infraction_code: '', status: 'pendente' };
+const FINE_BLANK  = { vehicle_id: '', tenant_id: '', amount: 0, date: '', due_date: '', description: '', infraction_code: '', status: 'pendente' };
 
 export default function Maintenance() {
   const [tab, setTab]           = useState('manutencao');
@@ -132,8 +132,8 @@ export default function Maintenance() {
     const { error: err } = await supabase.from('fines').insert({
       client_id: user.id, vehicle_id: nf.vehicle_id, tenant_id: nf.tenant_id || null,
       photo_url: finePhoto?.url || null, photo_path: finePhoto?.path || null,
-      amount: nf.amount || 0, date: nf.date || null, description: nf.description || null,
-      infraction_code: nf.infraction_code || null, status: nf.status,
+      amount: nf.amount || 0, date: nf.date || null, due_date: nf.due_date || null,
+      description: nf.description || null, infraction_code: nf.infraction_code || null, status: nf.status,
     });
     setSaving(false);
     if (err) { setError(err.message); return; }
@@ -305,7 +305,8 @@ export default function Maintenance() {
                       </div>
                       {f.description && <div style={{ fontSize: 13, color: '#94a3b8' }}>{f.description}</div>}
                       <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-                        {f.date        && <div style={{ fontSize: 12, color: '#64748b' }}>{ptDate(f.date)}</div>}
+                        {f.date        && <div style={{ fontSize: 12, color: '#64748b' }}>Infração: {ptDate(f.date)}</div>}
+                        {f.due_date    && (() => { const d = daysUntil(f.due_date); const c = d < 0 ? '#ef4444' : d < 7 ? '#f59e0b' : '#64748b'; return <div style={{ fontSize: 12, color: c, fontWeight: d < 7 ? 700 : 400 }}>Vence: {ptDate(f.due_date)}{d < 0 ? ' ⚠️ vencida' : d < 7 ? ` (${d}d)` : ''}</div>; })()}
                         {f.infraction_code && <div style={{ fontSize: 12, color: '#64748b' }}>Cód: {f.infraction_code}</div>}
                         {f.amount > 0  && <div style={{ fontSize: 13, color: '#ef4444', fontWeight: 700 }}>R$ {Number(f.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>}
                       </div>
@@ -450,6 +451,10 @@ export default function Maintenance() {
               <div>
                 <label style={S.lbl}>Código da Infração</label>
                 <input style={S.inp} placeholder="55412" value={nf.infraction_code} onChange={e => setNf(p => ({ ...p, infraction_code: e.target.value }))} />
+              </div>
+              <div>
+                <label style={S.lbl}>Vencimento da Multa</label>
+                <input style={S.inp} type="date" value={nf.due_date} onChange={e => setNf(p => ({ ...p, due_date: e.target.value }))} />
               </div>
               <div>
                 <label style={S.lbl}>Status</label>
