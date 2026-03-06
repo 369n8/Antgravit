@@ -36,20 +36,43 @@ async function tgSend(chatId: number | string, text: string): Promise<void> {
   if (!res.ok) console.error("[tgSend] error:", await res.text());
 }
 
+async function tgTyping(chatId: number | string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendChatAction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, action: "typing" }),
+  });
+}
+
 // ── Definição de Ferramentas (formato OpenAI) ─────────────────────────────────
+// Schema completo das tabelas para guiar a IA:
+//
+// tenants: id(uuid), name, cpf, phone, email, status('ativo'|'encerrado'),
+//   blacklisted(bool), rent_weekly(number), telegram_username, telegram_chat_id,
+//   vehicle_id, app_used, app_rating, notes, created_at
+//   → join: vehicles(plate, brand, model), payments(paid_status, due_date, value_amount)
+//
+// payments: id(uuid), tenant_id(uuid), value_amount(number), due_date(date),
+//   paid_status(bool), paid_date(date), payment_method, week_label
+//   → join: tenants(name, phone)
+
 const AI_TOOLS = [
   {
     type: "function",
     function: {
       name: "listar_locatarios",
-      description: "Lista locatários com dados e pagamentos. Use para perguntas sobre quem está ativo, inadimplente ou encerrado.",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre motoristas, locatários, inadimplentes, ativos, frota, quem está alugando, avaliações ou qualquer dado de pessoas.",
+        "Retorna registros da tabela 'tenants' com join de veículo e pagamentos.",
+        "Campos retornados: id, name, cpf, phone, status, blacklisted, rent_weekly, telegram_username, telegram_chat_id, app_used, app_rating, notes, vehicles(plate,brand,model), payments(paid_status,due_date,value_amount).",
+      ].join(" "),
       parameters: {
         type: "object",
         properties: {
           status: {
             type: "string",
             enum: ["ativo", "encerrado", "todos"],
-            description: "Filtro de status. Padrão: ativo.",
+            description: "Filtrar por status do locatário. Use 'todos' para ver todos. Padrão: ativo.",
           },
         },
       },
@@ -59,17 +82,22 @@ const AI_TOOLS = [
     type: "function",
     function: {
       name: "listar_pagamentos",
-      description: "Lista pagamentos com dados do locatário. Filtra por atrasados ou por locatário específico.",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre dívidas, inadimplência, pagamentos em atraso, o que está vencido, quanto está pendente, ou qualquer valor financeiro.",
+        "Retorna registros da tabela 'payments' com join do locatário.",
+        "Campos retornados: id, tenant_id, value_amount, due_date, paid_status, paid_date, payment_method, week_label, tenants(name,phone).",
+        "Um pagamento está em atraso quando paid_status=false E due_date < hoje.",
+      ].join(" "),
       parameters: {
         type: "object",
         properties: {
           apenas_atrasados: {
             type: "boolean",
-            description: "Se true, retorna apenas vencidos e não pagos.",
+            description: "Se true, retorna apenas pagamentos com due_date no passado e paid_status=false (inadimplentes).",
           },
           tenant_id: {
             type: "string",
-            description: "UUID do locatário para filtrar.",
+            description: "UUID do locatário para filtrar pagamentos de uma pessoa específica. Obter o id primeiro via listar_locatarios se necessário.",
           },
         },
       },
@@ -79,17 +107,26 @@ const AI_TOOLS = [
     type: "function",
     function: {
       name: "atualizar_locatario",
-      description: "Atualiza campos de um locatário. Ex: status, notas, telegram_username, rent_weekly.",
+      description: [
+        "Atualiza um ou mais campos de um locatário na tabela 'tenants'.",
+        "Campos editáveis: name, cpf, phone, email, status('ativo'|'encerrado'), blacklisted(bool), rent_weekly(number), telegram_username, notes, app_rating.",
+        "Requer o UUID do locatário — use listar_locatarios primeiro se não tiver o id.",
+      ].join(" "),
       parameters: {
         type: "object",
         properties: {
-          id: { type: "string", description: "UUID do locatário." },
-          dados: {
-            type: "object",
-            description: "Campos a atualizar. Ex: {\"status\": \"encerrado\"}",
-          },
+          id: { type: "string", description: "UUID (id) do locatário a atualizar." },
+          name:             { type: "string" },
+          status:           { type: "string", enum: ["ativo", "encerrado"] },
+          blacklisted:      { type: "boolean" },
+          rent_weekly:      { type: "number" },
+          phone:            { type: "string" },
+          email:            { type: "string" },
+          telegram_username:{ type: "string" },
+          notes:            { type: "string" },
+          app_rating:       { type: "string" },
         },
-        required: ["id", "dados"],
+        required: ["id"],
       },
     },
   },
@@ -97,17 +134,24 @@ const AI_TOOLS = [
     type: "function",
     function: {
       name: "atualizar_pagamento",
-      description: "Atualiza um pagamento. Ex: marcar como pago, alterar valor ou vencimento.",
+      description: [
+        "Atualiza um pagamento na tabela 'payments'.",
+        "Campos editáveis: paid_status(bool), paid_date(date YYYY-MM-DD), value_amount(number), due_date(date YYYY-MM-DD), payment_method, week_label.",
+        "Para marcar como pago: paid_status=true e paid_date com a data de hoje.",
+        "Requer o UUID do pagamento — use listar_pagamentos primeiro se não tiver o id.",
+      ].join(" "),
       parameters: {
         type: "object",
         properties: {
-          id: { type: "string", description: "UUID do pagamento." },
-          dados: {
-            type: "object",
-            description: "Campos a atualizar. Ex: {\"paid_status\": true, \"paid_date\": \"2026-03-06\"}",
-          },
+          id:             { type: "string", description: "UUID (id) do pagamento a atualizar." },
+          paid_status:    { type: "boolean" },
+          paid_date:      { type: "string", description: "Data no formato YYYY-MM-DD." },
+          value_amount:   { type: "number" },
+          due_date:       { type: "string", description: "Data no formato YYYY-MM-DD." },
+          payment_method: { type: "string" },
+          week_label:     { type: "string" },
         },
-        required: ["id", "dados"],
+        required: ["id"],
       },
     },
   },
@@ -152,20 +196,22 @@ async function executeTool(
   }
 
   if (name === "atualizar_locatario") {
+    const { id, ...fields } = args;
     const { data, error } = await supabase
       .from("tenants")
-      .update(args.dados as object)
-      .eq("id", args.id as string)
+      .update(fields)
+      .eq("id", id as string)
       .select("id, name")
       .single();
     return error ? { error: error.message } : { ok: true, updated: data };
   }
 
   if (name === "atualizar_pagamento") {
+    const { id, ...fields } = args;
     const { data, error } = await supabase
       .from("payments")
-      .update(args.dados as object)
-      .eq("id", args.id as string)
+      .update(fields)
+      .eq("id", id as string)
       .select("id")
       .single();
     return error ? { error: error.message } : { ok: true, updated: data };
@@ -178,15 +224,19 @@ async function executeTool(
 async function runAdminAgent(
   supabase: ReturnType<typeof createClient>,
   userMessage: string,
+  chatId: number | string,
 ): Promise<string> {
-  const SYSTEM = [
-    "Você é o Gerente Administrativo IA de uma frota de veículos por aplicativo.",
-    "Responda SEMPRE em português, de forma executiva, direta e objetiva.",
-    "Use as ferramentas para buscar dados reais antes de responder — nunca invente dados.",
-    "Ao listar dados, use marcadores (• ou -) para legibilidade no Telegram.",
-    "Ao atualizar dados, confirme o que foi alterado.",
-    `Hoje: ${new Date().toLocaleDateString("pt-BR")}.`,
-  ].join(" ");
+  const today = new Date().toLocaleDateString("pt-BR");
+  const SYSTEM = `Você é o Gerente Administrativo IA de uma frota de veículos por aplicativo. Hoje é ${today}.
+
+REGRAS OBRIGATÓRIAS:
+1. SEMPRE chame uma ferramenta antes de responder qualquer pergunta sobre dados. Nunca invente ou estime dados.
+2. Se perguntarem sobre motoristas, locatários, quem está ativo/inadimplente/na frota → chame listar_locatarios.
+3. Se perguntarem sobre dívidas, pagamentos, atrasos, valores pendentes → chame listar_pagamentos com apenas_atrasados=true.
+4. Se pedirem para atualizar/marcar/encerrar algo → chame atualizar_locatario ou atualizar_pagamento com os IDs corretos obtidos nas ferramentas anteriores.
+5. Responda em português, de forma executiva e direta.
+6. Ao listar, use marcadores (• nome — valor — status) para legibilidade no Telegram.
+7. Nunca responda "não tenho acesso" — você tem as ferramentas, USE-AS.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },
@@ -196,13 +246,19 @@ async function runAdminAgent(
   for (let round = 0; round < 8; round++) {
     console.log(`[agent] round ${round}, model: ${AI_MODEL}, messages: ${messages.length}`);
 
+    // Renovar indicador de digitação a cada round (expira em ~5s)
+    await tgTyping(chatId);
+
+    // Primeiro round: forçar uso de ferramenta; rounds seguintes: auto
+    const toolChoice = round === 0 ? "required" : "auto";
+
     const reqBody = {
       model:       AI_MODEL,
       messages,
       tools:       AI_TOOLS,
-      tool_choice: "auto",
+      tool_choice: toolChoice,
       max_tokens:  1024,
-      temperature: 0.3,
+      temperature: 0.2,
     };
 
     console.log(`[agent] POST https://openrouter.ai/api/v1/chat/completions`);
@@ -343,9 +399,9 @@ serve(async (req) => {
         return new Response("ok");
       }
 
-      await tgSend(chatId, "⏳ _Processando..._");
+      await tgTyping(chatId);
 
-      const answer = await runAdminAgent(supabase, text);
+      const answer = await runAdminAgent(supabase, text, chatId);
       await tgSend(chatId, answer);
       return new Response("ok");
     }
