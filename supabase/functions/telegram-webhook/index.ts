@@ -169,15 +169,18 @@ const AI_TOOLS = [
     function: {
       name: "listar_checkins",
       description: [
-        "OBRIGATÓRIO usar quando perguntarem sobre check-in, entrega/devolução de veículos, quilometragem, combustível ou fotos de check-in.",
-        "Retorna tabela 'checkins' com join de veículo e locatário.",
-        "Campos: id, checkin_type('entrega'|'devolucao'), mileage, fuel_level(0-100), notes, created_at, vehicles(plate,brand,model), tenants(name,phone).",
+        "OBRIGATÓRIO usar quando perguntarem sobre check-in, entrega/devolução de veículos, quilometragem (KM), combustível ou histórico de uso.",
+        "Para 'qual a última KM do carro X?' → use esta ferramenta com vehicle_plate e o primeiro resultado (mais recente) terá o campo mileage.",
+        "Retorna tabela 'checkins' com join de veículo e locatário, ordenado por created_at DESC (mais recente primeiro).",
+        "Campos: id, checkin_type('entrega'|'devolucao'), mileage(km registrado), fuel_level(0-100), notes, created_at, vehicles(plate,brand,model), tenants(name,phone).",
       ].join(" "),
       parameters: {
         type: "object",
         properties: {
-          vehicle_id:   { type: "string", description: "UUID do veículo. Opcional." },
-          checkin_type: { type: "string", enum: ["entrega", "devolucao", "todos"], description: "Padrão: todos." },
+          vehicle_plate: { type: "string", description: "Placa do veículo (ex: BRA2E25) para filtrar. Preferir em relação a vehicle_id quando a placa é conhecida." },
+          vehicle_id:    { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
+          checkin_type:  { type: "string", enum: ["entrega", "devolucao", "todos"], description: "Padrão: todos." },
+          limit:         { type: "number", description: "Máximo de registros. Use 1 para buscar apenas o mais recente." },
         },
       },
     },
@@ -223,6 +226,29 @@ const AI_TOOLS = [
           status:          { type: "string", enum: ["pendente", "pago", "contestado"], description: "Padrão: pendente." },
         },
         required: ["vehicle_plate"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_manutencao",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre gastos de manutenção, pneus, óleo, revisão, freios, custos por categoria, histórico de manutenção ou agendamentos futuros.",
+        "Para 'quanto gastei com pneus?' → use category='Pneu' e some os value_amount.",
+        "Para 'quanto gastei este mês?' → use o parâmetro desde com o primeiro dia do mês.",
+        "Retorna tabela 'maintenance' com join de veículo.",
+        "Campos: id, event_type('expense'|'schedule'), category('Revisão'|'Pneu'|'Freios'|'Óleo'|'Elétrica'|'Funilaria'|'IPVA'|'Outro'), date, description, value_amount, done, vehicles(plate,brand,model).",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          vehicle_plate: { type: "string", description: "Placa do veículo para filtrar (ex: BRA2E25). Opcional." },
+          vehicle_id:    { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
+          category:      { type: "string", enum: ["Revisão", "Pneu", "Freios", "Óleo", "Elétrica", "Funilaria", "IPVA", "Outro", "todas"], description: "Filtrar por categoria. Padrão: todas." },
+          event_type:    { type: "string", enum: ["expense", "schedule", "todos"], description: "expense=despesas reais, schedule=agendamentos futuros. Padrão: todos." },
+          desde:         { type: "string", description: "Data inicial YYYY-MM-DD para filtrar. Ex: primeiro dia do mês atual." },
+        },
       },
     },
   },
@@ -288,12 +314,39 @@ async function executeTool(
   }
 
   if (name === "listar_checkins") {
+    let vehicleId = args.vehicle_id as string | undefined;
+    // Resolve plate → vehicle_id if needed
+    if (!vehicleId && args.vehicle_plate) {
+      const plate = (args.vehicle_plate as string).replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const { data: veh } = await supabase.from("vehicles").select("id").ilike("plate", plate).limit(1).single();
+      if (veh) vehicleId = veh.id;
+    }
     let q = supabase
       .from("checkins")
       .select("id, checkin_type, mileage, fuel_level, notes, created_at, vehicles(plate, brand, model), tenants(name, phone)")
       .order("created_at", { ascending: false });
-    if (args.vehicle_id) q = q.eq("vehicle_id", args.vehicle_id as string);
+    if (vehicleId) q = q.eq("vehicle_id", vehicleId);
     if (args.checkin_type && args.checkin_type !== "todos") q = q.eq("checkin_type", args.checkin_type as string);
+    if (args.limit) q = q.limit(args.limit as number);
+    const { data, error } = await q;
+    return error ? { error: error.message } : data;
+  }
+
+  if (name === "listar_manutencao") {
+    let vehicleId = args.vehicle_id as string | undefined;
+    if (!vehicleId && args.vehicle_plate) {
+      const plate = (args.vehicle_plate as string).replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const { data: veh } = await supabase.from("vehicles").select("id").ilike("plate", plate).limit(1).single();
+      if (veh) vehicleId = veh.id;
+    }
+    let q = supabase
+      .from("maintenance")
+      .select("id, event_type, category, date, description, value_amount, done, vehicles(plate, brand, model)")
+      .order("date", { ascending: false });
+    if (vehicleId) q = q.eq("vehicle_id", vehicleId);
+    if (args.category && args.category !== "todas") q = q.eq("category", args.category as string);
+    if (args.event_type && args.event_type !== "todos") q = q.eq("event_type", args.event_type as string);
+    if (args.desde) q = q.gte("date", args.desde as string);
     const { data, error } = await q;
     return error ? { error: error.message } : data;
   }
@@ -439,10 +492,7 @@ async function handleAdminPhoto(
   } else {
     await tgSend(
       chatId,
-      `📸 *Foto da multa salva com sucesso!*\n\n` +
-      `Agora me diga os detalhes para registrar:\n` +
-      `Responda no formato: *placa valor data*\n\n` +
-      `Ex: \`BRA2E25 R$150 01/03/2026 excesso de velocidade\``,
+      `📸 Foto recebida e salva!\n\nChefe, qual o valor e a placa desta multa para eu registrar?`,
     );
   }
 }
@@ -461,13 +511,14 @@ REGRAS OBRIGATÓRIAS:
 2. Motoristas, locatários, ativos/inadimplentes/frota → listar_locatarios.
 3. Dívidas, pagamentos, atrasos, valores pendentes → listar_pagamentos (apenas_atrasados=true).
 4. Atualizar/marcar/encerrar algo → atualizar_locatario ou atualizar_pagamento.
-5. Seguros, apólices, vencimentos → listar_seguros.
-6. Check-ins, entrega/devolução, KM, combustível → listar_checkins.
-7. Multas, infrações, penalidades → listar_multas.
-8. Registrar multa (após foto ou informação de infração) → registrar_multa com a placa do veículo.
-9. Responda em português, de forma executiva e direta.
-10. Ao listar, use marcadores (• nome — valor — status) para legibilidade no Telegram.
-11. Nunca responda "não tenho acesso" — você tem as ferramentas, USE-AS.`;
+5. Gastos de manutenção, pneus, óleo, revisão, histórico de manutenção → listar_manutencao. Para somar gastos por categoria, filtre e some os value_amount.
+6. Seguros, apólices, vencimentos → listar_seguros. Ordenar por expiry_date ASC para encontrar o que vence primeiro.
+7. KM atual de um carro, check-in, entrega/devolução, combustível → listar_checkins com vehicle_plate e limit=1. O campo mileage contém a KM registrada.
+8. Multas, infrações, penalidades → listar_multas.
+9. Registrar multa (após foto ou texto do admin) → registrar_multa com vehicle_plate. Completa automaticamente multas pendentes sem veículo.
+10. Responda em português, de forma executiva e direta. Seja conversacional como um assistente próximo.
+11. Ao listar, use marcadores (• nome — valor — status) para legibilidade no Telegram.
+12. Nunca responda "não tenho acesso" — você tem as ferramentas, USE-AS.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },
