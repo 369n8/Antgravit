@@ -1,6 +1,9 @@
 import React from 'react';
 
-export default function Dashboard({ vehicles = [], tenants = [], alerts = [], weekRev = 0, totalExpenses = 0, onNavigate }) {
+function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000); }
+function ptDate(d) { if (!d) return '—'; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; }
+
+export default function Dashboard({ vehicles = [], tenants = [], alerts = [], weekRev = 0, totalExpenses = 0, fleetAlerts = { insurance: [], fines: [] }, onNavigate }) {
   const nav = (page) => onNavigate && onNavigate(page);
   const locados = vehicles.filter(v => v.status === "locado").length;
   const disponiveis = vehicles.filter(v => v.status === "disponível").length;
@@ -42,9 +45,64 @@ export default function Dashboard({ vehicles = [], tenants = [], alerts = [], we
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 18 }}>
-        <div style={S.card}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>⚠️ Alertas Recentes</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        {/* Alertas de Frota */}
+        <div style={{ ...S.card, gridColumn: "1/-1" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            🚨 Alertas de Frota
+            {(fleetAlerts.insurance.length + fleetAlerts.fines.length) > 0 && (
+              <span style={S.bdg("#ef4444")}>{fleetAlerts.insurance.length + fleetAlerts.fines.length}</span>
+            )}
+          </div>
+          {fleetAlerts.insurance.length === 0 && fleetAlerts.fines.length === 0 ? (
+            <div style={{ color: "#22c55e", fontSize: 14 }}>✓ Nenhum alerta de frota</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 9 }}>
+              {fleetAlerts.insurance.map((ins, i) => {
+                const d = ins.expiry_date ? daysUntil(ins.expiry_date) : null;
+                const c = d !== null && d <= 7 ? "#ef4444" : "#f59e0b";
+                const veh = ins.vehicles;
+                return (
+                  <div key={`ins-${i}`} onClick={() => nav("maintenance")}
+                    style={{ background: `${c}10`, border: `1px solid ${c}40`, borderRadius: 12, padding: "12px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>🛡 {veh ? `${veh.brand} ${veh.model}` : "—"}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                        {ins.insurer ?? "Seguro"} · vence {ptDate(ins.expiry_date)}
+                      </div>
+                    </div>
+                    <span style={S.bdg(c)}>{d !== null ? `${d}d` : "—"}</span>
+                  </div>
+                );
+              })}
+              {fleetAlerts.fines.map((f, i) => {
+                const veh = f.vehicles;
+                const hasDue = !!f.due_date;
+                const d = hasDue ? daysUntil(f.due_date) : null;
+                const c = d !== null && d <= 3 ? "#ef4444" : "#f59e0b";
+                return (
+                  <div key={`fine-${i}`} onClick={() => nav("maintenance")}
+                    style={{ background: "#ef444410", border: "1px solid #ef444440", borderRadius: 12, padding: "12px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>🚨 {veh ? `${veh.brand} ${veh.model}` : "Multa"}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                        {f.description ? f.description.slice(0, 30) : "Pendente"}
+                        {hasDue ? ` · vence ${ptDate(f.due_date)}` : ""}
+                      </div>
+                    </div>
+                    <span style={S.bdg("#ef4444")}>
+                      {f.amount > 0 ? `R$${Number(f.amount).toFixed(0)}` : "Pendente"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Alertas de Documentos */}
+        <div style={{ ...S.card, gridColumn: "1/-1" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>⚠️ Alertas de Documentos</div>
           {alerts.length === 0 ? (
              <div style={{ color: "#22c55e", fontSize: 14 }}>✓ Tudo em ordem!</div>
           ) : (
@@ -53,7 +111,7 @@ export default function Dashboard({ vehicles = [], tenants = [], alerts = [], we
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{a.veh} <span style={{ color: "#64748b", fontWeight: 400 }}>({a.plate})</span></div>
                   <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>
-                    {a.doc.toUpperCase()} - {a.days} dias restantes
+                    {a.doc.toUpperCase()} — {a.days} dias restantes
                   </div>
                 </div>
                 <div style={S.bdg(a.days < 15 || a.days === 0 ? "#ef4444" : a.days < 30 ? "#f59e0b" : "#3b82f6")}>

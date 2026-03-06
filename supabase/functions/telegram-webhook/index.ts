@@ -232,6 +232,23 @@ const AI_TOOLS = [
   {
     type: "function",
     function: {
+      name: "verificar_vencimentos",
+      description: [
+        "OBRIGATÓRIO usar quando o admin perguntar 'como está a frota?', 'tem algo vencendo?', 'resumo da frota', 'o que vence essa semana?', 'alerta de vencimentos'.",
+        "Retorna em uma única chamada: seguros a vencer, agendamentos de manutenção pendentes, e multas com due_date próximo.",
+        "Ideal para dar um panorama executivo e proativo da situação da frota.",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          dias: { type: "number", description: "Janela de dias para buscar vencimentos. Padrão: 7." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "listar_manutencao",
       description: [
         "OBRIGATÓRIO usar quando perguntarem sobre gastos de manutenção, pneus, óleo, revisão, freios, custos por categoria, histórico de manutenção ou agendamentos futuros.",
@@ -416,6 +433,46 @@ async function executeTool(
     return error ? { error: error.message } : { ok: true, action: "created", id: data?.id, vehicle_found: !!vehicleId };
   }
 
+  if (name === "verificar_vencimentos") {
+    const dias   = (args.dias as number) ?? 7;
+    const today  = new Date().toISOString().slice(0, 10);
+    const future = new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10);
+
+    const [insRes, maintRes, finesRes] = await Promise.all([
+      supabase.from("insurance")
+        .select("expiry_date, insurer, vehicles(plate, brand, model)")
+        .lte("expiry_date", future)
+        .gte("expiry_date", today)
+        .order("expiry_date"),
+      supabase.from("maintenance")
+        .select("date, category, description, vehicles(plate, brand, model)")
+        .eq("event_type", "schedule")
+        .eq("done", false)
+        .lte("date", future)
+        .gte("date", today)
+        .order("date"),
+      supabase.from("fines")
+        .select("due_date, amount, description, vehicles(plate, brand, model)")
+        .eq("status", "pendente")
+        .not("due_date", "is", null)
+        .lte("due_date", future)
+        .gte("due_date", today)
+        .order("due_date"),
+    ]);
+
+    return {
+      janela_dias: dias,
+      seguros_vencendo:      insRes.data   ?? [],
+      manutencoes_agendadas: maintRes.data ?? [],
+      multas_vencendo:       finesRes.data ?? [],
+      resumo: {
+        seguros:    (insRes.data   ?? []).length,
+        manutencoes:(maintRes.data ?? []).length,
+        multas:     (finesRes.data ?? []).length,
+      },
+    };
+  }
+
   return { error: `Ferramenta desconhecida: ${name}` };
 }
 
@@ -508,6 +565,7 @@ async function runAdminAgent(
 
 REGRAS OBRIGATÓRIAS:
 1. SEMPRE chame uma ferramenta antes de responder qualquer pergunta sobre dados. Nunca invente ou estime.
+0. "Como está a frota?", "resumo", "o que vence essa semana?" → verificar_vencimentos (dias=7). Apresente o resumo de forma executiva com emojis por categoria.
 2. Motoristas, locatários, ativos/inadimplentes/frota → listar_locatarios.
 3. Dívidas, pagamentos, atrasos, valores pendentes → listar_pagamentos (apenas_atrasados=true).
 4. Atualizar/marcar/encerrar algo → atualizar_locatario ou atualizar_pagamento.

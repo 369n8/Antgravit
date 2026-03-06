@@ -46,6 +46,14 @@ const fuelBar = p => {
 const BUCKET         = 'vehicle-photos';
 const CHECKIN_BUCKET = 'checkin-photos';
 
+const FUEL_OPTS = [
+  { l: 'Cheio',   v: 100 },
+  { l: '3/4',     v: 75  },
+  { l: 'Meio',    v: 50  },
+  { l: '1/4',     v: 25  },
+  { l: 'Reserva', v: 10  },
+];
+
 const CK_BLANK = { checkin_type: 'entrega', mileage: '', fuel_level: 100, notes: '' };
 
 export default function Vehicles() {
@@ -63,13 +71,31 @@ export default function Vehicles() {
   const [ckPhotos, setCkPhotos]   = useState([]);    // fotos do checkin
   const [ckUploading, setCkUploading] = useState(false);
   const [ckSaving, setCkSaving]   = useState(false);
+  const [ckMap, setCkMap]         = useState({});  // vehicleId → last 3 checkins
   const fileRef                   = useRef();
   const ckFileRef                 = useRef();
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
-    supabase.from('vehicles').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { setRows(data ?? []); setLoading(false); });
+    const { data: vehs } = await supabase.from('vehicles').select('*').order('created_at', { ascending: false });
+    setRows(vehs ?? []);
+    if (vehs?.length) {
+      const ids = vehs.map(v => v.id);
+      const { data: cks } = await supabase
+        .from('checkins')
+        .select('vehicle_id, mileage, created_at')
+        .in('vehicle_id', ids)
+        .not('mileage', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(120);
+      const map = {};
+      for (const c of (cks ?? [])) {
+        if (!map[c.vehicle_id]) map[c.vehicle_id] = [];
+        if (map[c.vehicle_id].length < 3) map[c.vehicle_id].push(c);
+      }
+      setCkMap(map);
+    }
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -255,6 +281,20 @@ export default function Vehicles() {
                   {tire.d} {v.tire_condition}
                 </div>
 
+                {/* Histórico KM */}
+                {ckMap[v.id]?.length > 0 && (
+                  <div style={{ background: "#080d1a", borderRadius: 8, padding: "7px 10px", marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>Histórico KM</div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {ckMap[v.id].map((c, i) => (
+                        <span key={i} style={{ fontSize: 11, fontWeight: 700, color: i === 0 ? "#6366f1" : "#475569", background: i === 0 ? "#6366f115" : "#ffffff08", borderRadius: 5, padding: "2px 8px", border: `1px solid ${i === 0 ? "#6366f130" : "#334155"}` }}>
+                          {c.mileage >= 1000 ? `${(c.mileage / 1000).toFixed(0)}k` : c.mileage} km
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Ações */}
                 <div style={{ display: "flex", gap: 7, borderTop: "1px solid #1e293b", paddingTop: 12 }}>
                   <button
@@ -304,9 +344,10 @@ export default function Vehicles() {
                   onChange={e => setCk(p => ({ ...p, mileage: e.target.value }))} />
               </div>
               <div>
-                <label style={S.lbl}>Combustível {ck.fuel_level}%</label>
-                <input style={{ ...S.inp, padding: '11px 12px', cursor: 'pointer' }} type="range" min={0} max={100} step={5}
-                  value={ck.fuel_level} onChange={e => setCk(p => ({ ...p, fuel_level: Number(e.target.value) }))} />
+                <label style={S.lbl}>Combustível</label>
+                <select style={S.inp} value={ck.fuel_level} onChange={e => setCk(p => ({ ...p, fuel_level: Number(e.target.value) }))}>
+                  {FUEL_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
               </div>
               <div style={{ gridColumn: '1/-1' }}>
                 <label style={S.lbl}>Obs</label>

@@ -186,7 +186,7 @@ export default function Maintenance() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-        {[['manutencao','🔧 Manutenção'],['seguro','🛡 Seguro'],['multas','🚨 Multas']].map(([id,l]) => (
+        {[['multas','🚨 Multas'],['manutencao','🔧 Pneus/Manutenção'],['seguro','🛡 Seguros']].map(([id,l]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ ...S.btn(tab === id ? 'p' : 'g'), padding: '7px 18px', fontSize: 12 }}>{l}</button>
         ))}
@@ -259,6 +259,7 @@ export default function Maintenance() {
                         <span style={{ fontWeight: 700, fontSize: 14 }}>{veh ? `${veh.type === 'moto' ? '🏍️' : '🚗'} ${veh.brand} ${veh.model}` : '—'}</span>
                         {veh && <span style={S.bdg('#6366f1')}>{veh.plate}</span>}
                         {ins.insurer && <span style={S.bdg('#64748b')}>{ins.insurer}</span>}
+                        <span style={S.bdg(ins.pay_date ? '#22c55e' : '#f59e0b')}>{ins.pay_date ? '✓ Pago' : 'Pendente'}</span>
                       </div>
                       {ins.policy_number && <div style={{ fontSize: 12, color: '#64748b' }}>Apólice: {ins.policy_number}</div>}
                       <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
