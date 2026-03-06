@@ -155,6 +155,77 @@ const AI_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "listar_seguros",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre seguro, apólice, vencimento de seguro, seguradora, ou proteção de veículos.",
+        "Retorna registros da tabela 'insurance' com join de veículo.",
+        "Campos retornados: id, vehicle_id, insurer, policy_number, pay_date, expiry_date, amount, notes, vehicles(plate,brand,model).",
+        "Use expiry_date para verificar vencimentos próximos.",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          vehicle_id: {
+            type: "string",
+            description: "UUID do veículo para filtrar seguros de um veículo específico. Opcional.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_checkins",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre check-in, entrega ou devolução de veículos, quilometragem, combustível, fotos de check-in.",
+        "Retorna registros da tabela 'checkins' com join de veículo e locatário.",
+        "Campos retornados: id, checkin_type('entrega'|'devolucao'), mileage, fuel_level(0-100), notes, created_at, vehicles(plate,brand,model), tenants(name,phone).",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          vehicle_id: {
+            type: "string",
+            description: "UUID do veículo para filtrar check-ins de um veículo específico. Opcional.",
+          },
+          checkin_type: {
+            type: "string",
+            enum: ["entrega", "devolucao", "todos"],
+            description: "Filtrar por tipo de check-in. Padrão: todos.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_multas",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre multas, infrações, penalidades, valores de multa, multas pendentes ou pagas.",
+        "Retorna registros da tabela 'fines' com join de veículo e locatário.",
+        "Campos retornados: id, amount, date, description, infraction_code, status('pendente'|'pago'|'contestado'), vehicles(plate,brand,model), tenants(name,phone).",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: ["pendente", "pago", "contestado", "todos"],
+            description: "Filtrar por status da multa. Padrão: todos.",
+          },
+          vehicle_id: {
+            type: "string",
+            description: "UUID do veículo para filtrar multas de um veículo específico. Opcional.",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ── Executor de Ferramentas ───────────────────────────────────────────────────
@@ -217,6 +288,38 @@ async function executeTool(
     return error ? { error: error.message } : { ok: true, updated: data };
   }
 
+  if (name === "listar_seguros") {
+    let q = supabase
+      .from("insurance")
+      .select("id, vehicle_id, insurer, policy_number, pay_date, expiry_date, amount, notes, vehicles(plate, brand, model)")
+      .order("expiry_date", { ascending: true });
+    if (args.vehicle_id) q = q.eq("vehicle_id", args.vehicle_id as string);
+    const { data, error } = await q;
+    return error ? { error: error.message } : data;
+  }
+
+  if (name === "listar_checkins") {
+    let q = supabase
+      .from("checkins")
+      .select("id, checkin_type, mileage, fuel_level, notes, created_at, vehicles(plate, brand, model), tenants(name, phone)")
+      .order("created_at", { ascending: false });
+    if (args.vehicle_id) q = q.eq("vehicle_id", args.vehicle_id as string);
+    if (args.checkin_type && args.checkin_type !== "todos") q = q.eq("checkin_type", args.checkin_type as string);
+    const { data, error } = await q;
+    return error ? { error: error.message } : data;
+  }
+
+  if (name === "listar_multas") {
+    let q = supabase
+      .from("fines")
+      .select("id, amount, date, description, infraction_code, status, vehicles(plate, brand, model), tenants(name, phone)")
+      .order("date", { ascending: false });
+    if (args.vehicle_id) q = q.eq("vehicle_id", args.vehicle_id as string);
+    if (args.status && args.status !== "todos") q = q.eq("status", args.status as string);
+    const { data, error } = await q;
+    return error ? { error: error.message } : data;
+  }
+
   return { error: `Ferramenta desconhecida: ${name}` };
 }
 
@@ -234,9 +337,12 @@ REGRAS OBRIGATÓRIAS:
 2. Se perguntarem sobre motoristas, locatários, quem está ativo/inadimplente/na frota → chame listar_locatarios.
 3. Se perguntarem sobre dívidas, pagamentos, atrasos, valores pendentes → chame listar_pagamentos com apenas_atrasados=true.
 4. Se pedirem para atualizar/marcar/encerrar algo → chame atualizar_locatario ou atualizar_pagamento com os IDs corretos obtidos nas ferramentas anteriores.
-5. Responda em português, de forma executiva e direta.
-6. Ao listar, use marcadores (• nome — valor — status) para legibilidade no Telegram.
-7. Nunca responda "não tenho acesso" — você tem as ferramentas, USE-AS.`;
+5. Se perguntarem sobre seguros ou vencimentos de apólice → chame listar_seguros.
+6. Se perguntarem sobre check-ins, entrega/devolução, KM ou combustível → chame listar_checkins.
+7. Se perguntarem sobre multas ou infrações → chame listar_multas.
+8. Responda em português, de forma executiva e direta.
+9. Ao listar, use marcadores (• nome — valor — status) para legibilidade no Telegram.
+10. Nunca responda "não tenho acesso" — você tem as ferramentas, USE-AS.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },

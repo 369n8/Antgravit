@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 const STATUS_COLOR = {
@@ -43,7 +43,10 @@ const fuelBar = p => {
   );
 };
 
-const BUCKET = 'vehicle-photos';
+const BUCKET         = 'vehicle-photos';
+const CHECKIN_BUCKET = 'checkin-photos';
+
+const CK_BLANK = { checkin_type: 'entrega', mileage: '', fuel_level: 100, notes: '' };
 
 export default function Vehicles() {
   const [rows, setRows]           = useState([]);
@@ -52,10 +55,16 @@ export default function Vehicles() {
   const [nv, setNv]               = useState(BLANK);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState(null);
-  const [photoVeh, setPhotoVeh]   = useState(null); // vehicle being photographed
+  const [photoVeh, setPhotoVeh]   = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [lightbox, setLightbox]   = useState(null); // { photos, idx }
+  const [lightbox, setLightbox]   = useState(null);
+  const [ckVeh, setCkVeh]         = useState(null);  // veículo em check-in
+  const [ck, setCk]               = useState(CK_BLANK);
+  const [ckPhotos, setCkPhotos]   = useState([]);    // fotos do checkin
+  const [ckUploading, setCkUploading] = useState(false);
+  const [ckSaving, setCkSaving]   = useState(false);
   const fileRef                   = useRef();
+  const ckFileRef                 = useRef();
 
   const load = () => {
     setLoading(true);
@@ -135,6 +144,50 @@ export default function Vehicles() {
     setRows(r => r.map(v => v.id === photoVeh.id ? updated : v));
   };
 
+  /* ── UPLOAD FOTO CHECK-IN ── */
+  const handleCkUpload = async (files) => {
+    if (!files?.length) return;
+    setCkUploading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const newPhotos = [...ckPhotos];
+    for (const file of Array.from(files)) {
+      const ext  = file.name.split('.').pop();
+      const path = `${user.id}/checkins/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from(CHECKIN_BUCKET).upload(path, file);
+      if (upErr) { setError(upErr.message); continue; }
+      const { data: { publicUrl } } = supabase.storage.from(CHECKIN_BUCKET).getPublicUrl(path);
+      newPhotos.push({ url: publicUrl, path });
+    }
+    setCkPhotos(newPhotos);
+    setCkUploading(false);
+  };
+
+  /* ── SALVAR CHECK-IN ── */
+  const handleCheckin = async () => {
+    if (!ckVeh) return;
+    setCkSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error: err } = await supabase.from('checkins').insert({
+      client_id:    user.id,
+      vehicle_id:   ckVeh.id,
+      checkin_type: ck.checkin_type,
+      mileage:      ck.mileage ? Number(ck.mileage) : null,
+      fuel_level:   ck.fuel_level,
+      photos:       ckPhotos,
+      notes:        ck.notes || null,
+    });
+    if (!err && ck.mileage) {
+      await supabase.from('vehicles').update({
+        km:         Number(ck.mileage),
+        fuel_level: ck.fuel_level,
+      }).eq('id', ckVeh.id);
+      setRows(r => r.map(v => v.id === ckVeh.id ? { ...v, km: Number(ck.mileage), fuel_level: ck.fuel_level } : v));
+    }
+    setCkSaving(false);
+    if (err) { setError(err.message); return; }
+    setCkVeh(null); setCk(CK_BLANK); setCkPhotos([]); setError(null);
+  };
+
   if (loading) return <div className="loading"><div className="spinner" /> Carregando...</div>;
 
   return (
@@ -205,10 +258,16 @@ export default function Vehicles() {
                 {/* Ações */}
                 <div style={{ display: "flex", gap: 7, borderTop: "1px solid #1e293b", paddingTop: 12 }}>
                   <button
-                    style={{ ...S.btn("p"), flex: 1, justifyContent: "center", padding: "7px 10px", fontSize: 12 }}
+                    style={{ ...S.btn("s"), flex: 1, justifyContent: "center", padding: "7px 10px", fontSize: 12 }}
+                    onClick={() => { setCkVeh(v); setCk(CK_BLANK); setCkPhotos([]); setError(null); }}
+                  >
+                    📋 Check-in
+                  </button>
+                  <button
+                    style={{ ...S.btn("p"), padding: "7px 10px", fontSize: 12 }}
                     onClick={() => { setPhotoVeh(v); setError(null); }}
                   >
-                    📷 Fotos {photos.length > 0 ? `(${photos.length})` : ''}
+                    📷 {photos.length > 0 ? photos.length : ''}
                   </button>
                   <button
                     style={{ ...S.btn("d"), padding: "7px 12px", fontSize: 12 }}
@@ -220,6 +279,79 @@ export default function Vehicles() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Modal Check-in ── */}
+      {ckVeh && (
+        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setCkVeh(null); setError(null); } }}>
+          <div style={{ ...S.mbox, maxWidth: 500 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>📋 Check-in — {ckVeh.brand} {ckVeh.model}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 18 }}>{ckVeh.plate}</div>
+
+            {/* Tipo */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {[['entrega','🚗 Entrega'],['devolucao','🔑 Devolução']].map(([v,l]) => (
+                <button key={v} style={{ ...S.btn(ck.checkin_type === v ? 's' : 'g'), flex: 1, justifyContent: 'center' }}
+                  onClick={() => setCk(p => ({ ...p, checkin_type: v }))}>{l}</button>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <div>
+                <label style={S.lbl}>KM Atual</label>
+                <input style={S.inp} type="number" placeholder={ckVeh.km ?? 0} value={ck.mileage}
+                  onChange={e => setCk(p => ({ ...p, mileage: e.target.value }))} />
+              </div>
+              <div>
+                <label style={S.lbl}>Combustível {ck.fuel_level}%</label>
+                <input style={{ ...S.inp, padding: '11px 12px', cursor: 'pointer' }} type="range" min={0} max={100} step={5}
+                  value={ck.fuel_level} onChange={e => setCk(p => ({ ...p, fuel_level: Number(e.target.value) }))} />
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={S.lbl}>Obs</label>
+                <input style={S.inp} placeholder="Riscos, amassados, ocorrências..." value={ck.notes}
+                  onChange={e => setCk(p => ({ ...p, notes: e.target.value }))} />
+              </div>
+            </div>
+
+            {/* Fotos do check-in */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <label style={S.lbl}>Fotos do Check-in</label>
+                <button style={{ ...S.btn('p'), padding: '5px 12px', fontSize: 11 }}
+                  onClick={() => ckFileRef.current.click()} disabled={ckUploading}>
+                  {ckUploading ? 'Enviando...' : '+ Fotos'}
+                </button>
+              </div>
+              <input ref={ckFileRef} type="file" accept="image/*" multiple hidden
+                onChange={e => handleCkUpload(e.target.files)} />
+              {ckPhotos.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(90px,1fr))', gap: 7 }}>
+                  {ckPhotos.map((p, i) => (
+                    <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', aspectRatio: '4/3', background: '#080d1a' }}>
+                      <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button onClick={() => setCkPhotos(ph => ph.filter((_,j) => j !== i))}
+                        style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,.7)', border: 'none', color: '#ef4444', borderRadius: 5, width: 22, height: 22, cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div onClick={() => ckFileRef.current.click()}
+                  style={{ border: '2px dashed #334155', borderRadius: 10, padding: '20px', textAlign: 'center', color: '#64748b', cursor: 'pointer', fontSize: 12 }}>
+                  📷 Clique para adicionar fotos
+                </div>
+              )}
+            </div>
+
+            {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 10 }}>⚠ {error}</div>}
+            <div style={{ display: 'flex', gap: 9 }}>
+              <button style={S.btn('s')} onClick={handleCheckin} disabled={ckSaving}>
+                {ckSaving ? 'Salvando...' : '✅ Registrar Check-in'}
+              </button>
+              <button style={S.btn('g')} onClick={() => { setCkVeh(null); setError(null); }}>Cancelar</button>
+            </div>
+          </div>
         </div>
       )}
 

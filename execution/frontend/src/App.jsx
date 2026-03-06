@@ -11,7 +11,7 @@ import Maintenance         from './pages/Maintenance';
 import BlacklistManager    from './components/BlacklistManager';
 
 const PAGES = { dashboard: Dashboard, vehicles: Vehicles, tenants: Tenants, payments: Payments, maintenance: Maintenance };
-const TITLES = { dashboard: 'Dashboard', vehicles: 'Veículos', tenants: 'Locatários', payments: 'Pagamentos', maintenance: 'Manutenção' };
+const TITLES = { dashboard: 'Dashboard', vehicles: 'Veículos', tenants: 'Locatários', payments: 'Pagamentos', maintenance: 'Frota Operacional' };
 
 export default function App() {
   const { user, loading }         = useAuth();

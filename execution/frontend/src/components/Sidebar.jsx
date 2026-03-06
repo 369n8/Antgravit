@@ -7,7 +7,7 @@ const NAV = [
   { id: 'vehicles',    label: 'Veículos',     icon: IconCar },
   { id: 'tenants',     label: 'Locatários',   icon: IconUsers },
   { id: 'payments',    label: 'Pagamentos',   icon: IconMoney },
-  { id: 'maintenance', label: 'Manutenção',   icon: IconWrench },
+  { id: 'maintenance', label: 'Frota',         icon: IconWrench },
 ];
 
 export default function Sidebar({ page, onNavigate }) {
