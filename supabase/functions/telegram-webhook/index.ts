@@ -234,9 +234,9 @@ const AI_TOOLS = [
     function: {
       name: "verificar_vencimentos",
       description: [
-        "OBRIGATÓRIO usar quando o admin perguntar 'como está a frota?', 'tem algo vencendo?', 'resumo da frota', 'o que vence essa semana?', 'alerta de vencimentos'.",
-        "Retorna em uma única chamada: seguros a vencer, agendamentos de manutenção pendentes, e multas com due_date próximo.",
-        "Ideal para dar um panorama executivo e proativo da situação da frota.",
+        "OBRIGATÓRIO usar quando o admin perguntar 'como está a frota?', 'tem algo vencendo?', 'resumo da frota', 'o que vence essa semana?', 'situação geral'.",
+        "Retorna em uma única chamada: seguros a vencer, manutenções próximas, manutenções ATRASADAS, multas com due_date próximo, total de multas pendentes, e veículos com KM alta (≥80k).",
+        "resumo.veiculos_km_alta = contagem de carros precisando atenção por KM. resumo.manutencoes_atrasadas = revisões vencidas não feitas.",
       ].join(" "),
       parameters: {
         type: "object",
@@ -438,42 +438,98 @@ async function executeTool(
     const today  = new Date().toISOString().slice(0, 10);
     const future = new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10);
 
-    const [insRes, maintRes, finesRes] = await Promise.all([
+    const [insRes, maintProxRes, maintAtrasRes, finesVencRes, finesTotalRes, cksRes] = await Promise.all([
+      // Seguros vencendo no período
       supabase.from("insurance")
         .select("expiry_date, insurer, vehicles(plate, brand, model)")
-        .lte("expiry_date", future)
-        .gte("expiry_date", today)
-        .order("expiry_date"),
+        .lte("expiry_date", future).gte("expiry_date", today).order("expiry_date"),
+      // Manutenções agendadas próximas
       supabase.from("maintenance")
         .select("date, category, description, vehicles(plate, brand, model)")
-        .eq("event_type", "schedule")
-        .eq("done", false)
-        .lte("date", future)
-        .gte("date", today)
-        .order("date"),
+        .eq("event_type", "schedule").eq("done", false)
+        .lte("date", future).gte("date", today).order("date"),
+      // Manutenções atrasadas (vencidas e não feitas)
+      supabase.from("maintenance")
+        .select("date, category, description, vehicles(plate, brand, model)")
+        .eq("event_type", "schedule").eq("done", false)
+        .lt("date", today).order("date"),
+      // Multas com vencimento próximo
       supabase.from("fines")
         .select("due_date, amount, description, vehicles(plate, brand, model)")
-        .eq("status", "pendente")
-        .not("due_date", "is", null)
-        .lte("due_date", future)
-        .gte("due_date", today)
-        .order("due_date"),
+        .eq("status", "pendente").not("due_date", "is", null)
+        .lte("due_date", future).gte("due_date", today).order("due_date"),
+      // Total de multas pendentes (todas, sem filtro de data)
+      supabase.from("fines").select("id, amount").eq("status", "pendente"),
+      // Último check-in por veículo (para KM e combustível)
+      supabase.from("checkins")
+        .select("vehicle_id, mileage, fuel_level, created_at, vehicles(plate, brand, model)")
+        .not("mileage", "is", null).order("created_at", { ascending: false }).limit(80),
     ]);
+
+    // Último check-in por veículo (deduplicar)
+    const seen = new Set<string>();
+    const lastCheckins: Record<string, unknown>[] = [];
+    for (const c of (cksRes.data ?? [])) {
+      if (!seen.has(c.vehicle_id)) { seen.add(c.vehicle_id); lastCheckins.push(c); }
+    }
+    const altaKm = lastCheckins.filter(c => (c.mileage as number) >= 80000);
+    const totalFinesValor = (finesTotalRes.data ?? []).reduce((s, f) => s + (f.amount || 0), 0);
 
     return {
       janela_dias: dias,
-      seguros_vencendo:      insRes.data   ?? [],
-      manutencoes_agendadas: maintRes.data ?? [],
-      multas_vencendo:       finesRes.data ?? [],
+      seguros_vencendo:        insRes.data       ?? [],
+      manutencoes_proximas:    maintProxRes.data  ?? [],
+      manutencoes_atrasadas:   maintAtrasRes.data ?? [],
+      multas_vencendo:         finesVencRes.data  ?? [],
       resumo: {
-        seguros:    (insRes.data   ?? []).length,
-        manutencoes:(maintRes.data ?? []).length,
-        multas:     (finesRes.data ?? []).length,
+        seguros_vencendo:       (insRes.data       ?? []).length,
+        manutencoes_proximas:   (maintProxRes.data  ?? []).length,
+        manutencoes_atrasadas:  (maintAtrasRes.data ?? []).length,
+        multas_pendentes_total: (finesTotalRes.data ?? []).length,
+        valor_multas_pendentes: totalFinesValor,
+        veiculos_km_alta:       altaKm.length,
+        veiculos_km_alta_lista: altaKm.map(c => ({ plate: (c.vehicles as {plate:string})?.plate, km: c.mileage })),
       },
     };
   }
 
   return { error: `Ferramenta desconhecida: ${name}` };
+}
+
+// ── OCR de multa via visão IA ─────────────────────────────────────────────────
+async function extractFineDataFromImage(
+  imageUrl: string,
+): Promise<{ plate: string | null; amount: number | null; description: string | null }> {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_KEY}`,
+        "Content-Type":  "application/json",
+        "HTTP-Referer":  "https://frotaapp.app",
+        "X-Title":       "FrotaApp Fine OCR",
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: imageUrl } },
+            { type: "text", text: 'Esta é uma foto de auto de infração ou multa de trânsito. Extraia: 1) Placa do veículo, 2) Valor da multa em R$, 3) Descrição resumida da infração. Responda APENAS com JSON puro, sem markdown: {"plate":"ABC1D23","amount":195.23,"description":"Excesso de velocidade"}. Se não identificar algum campo, use null.' },
+          ],
+        }],
+        max_tokens: 120,
+        temperature: 0,
+      }),
+    });
+    if (!res.ok) return { plate: null, amount: null, description: null };
+    const json    = await res.json();
+    const content = (json.choices?.[0]?.message?.content ?? "{}").trim()
+      .replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    return JSON.parse(content);
+  } catch (_) {
+    return { plate: null, amount: null, description: null };
+  }
 }
 
 // ── Processar foto enviada pelo admin ─────────────────────────────────────────
@@ -540,17 +596,25 @@ async function handleAdminPhoto(
     });
   }
 
-  // 5) Se há legenda, processar via AI imediatamente
-  if (caption.trim()) {
-    await tgTyping(chatId);
-    const context = `O admin acabou de enviar uma foto de multa (já salva no Storage). Foto URL: ${publicUrl}. Legenda: "${caption}". Extraia os dados (placa, valor, data) e use registrar_multa para completar o registro.`;
+  // 5) Tentar extrair dados via visão IA (OCR)
+  await tgTyping(chatId);
+  const extracted = await extractFineDataFromImage(publicUrl);
+  console.log(`[photo] extracted:`, JSON.stringify(extracted));
+
+  // 6) Se há legenda OU dados extraídos → processar via agente imediatamente
+  const hasExtracted = extracted.plate || extracted.amount;
+  if (caption.trim() || hasExtracted) {
+    let context = `O admin enviou uma foto de multa (salva em: ${publicUrl}).`;
+    if (hasExtracted) {
+      context += ` Análise automática da imagem detectou: placa="${extracted.plate ?? "não identificada"}", valor=R$${extracted.amount ?? "não identificado"}, infração="${extracted.description ?? "não identificada"}".`;
+    }
+    if (caption.trim()) context += ` Legenda do admin: "${caption}".`;
+    context += ` Use registrar_multa para registrar com os dados extraídos. Se a placa não foi detectada, pergunte ao admin.`;
+
     const answer = await runAdminAgent(supabase, context, chatId);
     await tgSend(chatId, answer);
   } else {
-    await tgSend(
-      chatId,
-      `📸 Foto recebida e salva!\n\nChefe, qual o valor e a placa desta multa para eu registrar?`,
-    );
+    await tgSend(chatId, "📸 Foto recebida e salva!\n\nChefe, qual o valor e a placa desta multa para eu registrar?");
   }
 }
 
@@ -563,20 +627,15 @@ async function runAdminAgent(
   const today = new Date().toLocaleDateString("pt-BR");
   const SYSTEM = `Você é o Gerente Administrativo IA de uma frota de veículos por aplicativo. Hoje é ${today}.
 
-REGRAS OBRIGATÓRIAS:
-1. SEMPRE chame uma ferramenta antes de responder qualquer pergunta sobre dados. Nunca invente ou estime.
-0. "Como está a frota?", "resumo", "o que vence essa semana?" → verificar_vencimentos (dias=7). Apresente o resumo de forma executiva com emojis por categoria.
-2. Motoristas, locatários, ativos/inadimplentes/frota → listar_locatarios.
-3. Dívidas, pagamentos, atrasos, valores pendentes → listar_pagamentos (apenas_atrasados=true).
-4. Atualizar/marcar/encerrar algo → atualizar_locatario ou atualizar_pagamento.
-5. Gastos de manutenção, pneus, óleo, revisão, histórico de manutenção → listar_manutencao. Para somar gastos por categoria, filtre e some os value_amount.
-6. Seguros, apólices, vencimentos → listar_seguros. Ordenar por expiry_date ASC para encontrar o que vence primeiro.
-7. KM atual de um carro, check-in, entrega/devolução, combustível → listar_checkins com vehicle_plate e limit=1. O campo mileage contém a KM registrada.
-8. Multas, infrações, penalidades → listar_multas.
-9. Registrar multa (após foto ou texto do admin) → registrar_multa com vehicle_plate. Completa automaticamente multas pendentes sem veículo.
-10. Responda em português, de forma executiva e direta. Seja conversacional como um assistente próximo.
-11. Ao listar, use marcadores (• nome — valor — status) para legibilidade no Telegram.
-12. Nunca responda "não tenho acesso" — você tem as ferramentas, USE-AS.`;
+REGRAS OBRIGATÓRIAS — siga sempre esta ordem de prioridade:
+A. "Como está a frota?", "resumo", "o que vence?", "situação geral" → verificar_vencimentos(dias=7). Responda com relatório executivo: "🛡 X seguros vencendo | 🚨 Y multas pendentes | 🔧 Z revisões atrasadas | 🚗 W carros com KM alta (≥80k)".
+B. Gastos com pneus, óleo, revisão, manutenção por veículo → listar_manutencao(category="Pneu" etc.). Some os value_amount para totalizar.
+C. KM atual, último combustível registrado de um carro → listar_checkins(vehicle_plate=..., limit=1). O campo mileage=KM, fuel_level=% de combustível.
+D. Motoristas/locatários → listar_locatarios. Pagamentos/dívidas → listar_pagamentos. Seguros → listar_seguros. Multas → listar_multas.
+E. Registrar multa → registrar_multa(vehicle_plate=...). Atualizar dados → atualizar_locatario / atualizar_pagamento.
+F. NUNCA invente dados. SEMPRE chame uma ferramenta antes de responder. NUNCA diga "não tenho acesso".
+G. Terminologia de combustível: "Cheio"=100%, "3/4"=75%, "Meio Tanque" ou "Meio"=50%, "1/4"=25%, "Reserva"=10%. fuel_level no banco é inteiro 0-100.
+H. Ao listar use marcadores (• veículo — dado — status). Responda em português, direto, executivo.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },
