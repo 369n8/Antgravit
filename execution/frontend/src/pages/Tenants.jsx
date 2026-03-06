@@ -10,6 +10,7 @@ const BLANK = {
   emergency_name: '', emergency_phone: '', emergency_relation: '',
   vehicle_id: '', rent_weekly: 400, deposits: 0,
   payment_day: 'segunda-feira', payment_method: 'Pix', pix_key: '',
+  telegram_username: '',
   notes: '',
 };
 
@@ -39,15 +40,98 @@ export default function Tenants() {
   const [loading, setLoading]   = useState(true);
   const [showAdd, setShowAdd]   = useState(false);
   const [nt, setNt]             = useState(BLANK);
+  const [showEdit, setShowEdit] = useState(false);
+  const [et, setEt]             = useState(BLANK);
+  const [editTenant, setEditTenant] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState(null);
 
   const ntf = (k, v) => setNt(p => ({ ...p, [k]: v }));
+  const etf = (k, v) => setEt(p => ({ ...p, [k]: v }));
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Excluir locatário "${name}"? Esta ação não pode ser desfeita.`)) return;
     await supabase.from('tenants').delete().eq('id', id);
     setRows(r => r.filter(t => t.id !== id));
+  };
+
+  const openEdit = (t) => {
+    setEditTenant(t);
+    setEt({
+      name:               t.name               ?? '',
+      cpf:                t.cpf                ?? '',
+      rg:                 t.rg                 ?? '',
+      birth_date:         t.birth_date         ?? '',
+      phone:              t.phone              ?? '',
+      phone2:             t.phone2             ?? '',
+      email:              t.email              ?? '',
+      cnh:                t.cnh                ?? '',
+      cnh_category:       t.cnh_category       ?? 'B',
+      app_used:           t.app_used           ?? 'Uber',
+      app_rating:         t.app_rating         ?? '',
+      address:            t.address            ?? '',
+      bairro:             t.bairro             ?? '',
+      cidade:             t.cidade             ?? '',
+      estado:             t.estado             ?? 'SP',
+      cep:                t.cep                ?? '',
+      emergency_name:     t.emergency_name     ?? '',
+      emergency_phone:    t.emergency_phone    ?? '',
+      emergency_relation: t.emergency_relation ?? '',
+      vehicle_id:         t.vehicle_id         ?? '',
+      rent_weekly:        t.rent_weekly        ?? 400,
+      deposits:           t.deposits           ?? 0,
+      payment_day:        t.payment_day        ?? 'segunda-feira',
+      payment_method:     t.payment_method     ?? 'Pix',
+      pix_key:            t.pix_key            ?? '',
+      telegram_username:  t.telegram_username  ?? '',
+      notes:              t.notes              ?? '',
+    });
+    setError(null);
+    setShowEdit(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!et.name.trim()) { setError('Nome é obrigatório.'); return; }
+    setSaving(true);
+    setError(null);
+
+    const payload = {
+      name:               et.name.trim(),
+      cpf:                et.cpf                || null,
+      rg:                 et.rg                 || null,
+      birth_date:         et.birth_date         || null,
+      phone:              et.phone              || null,
+      phone2:             et.phone2             || null,
+      email:              et.email              || null,
+      cnh:                et.cnh                || null,
+      cnh_category:       et.cnh_category       || null,
+      app_used:           et.app_used           || null,
+      app_rating:         et.app_rating         || null,
+      address:            et.address            || null,
+      bairro:             et.bairro             || null,
+      cidade:             et.cidade             || null,
+      estado:             et.estado             || null,
+      cep:                et.cep                || null,
+      emergency_name:     et.emergency_name     || null,
+      emergency_phone:    et.emergency_phone    || null,
+      emergency_relation: et.emergency_relation || null,
+      vehicle_id:         et.vehicle_id         || null,
+      rent_weekly:        et.rent_weekly,
+      deposits:           et.deposits,
+      payment_day:        et.payment_day        || null,
+      payment_method:     et.payment_method     || null,
+      pix_key:            et.pix_key            || null,
+      telegram_username:  et.telegram_username  || null,
+      notes:              et.notes              || null,
+    };
+
+    const { error: err } = await supabase.from('tenants').update(payload).eq('id', editTenant.id);
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+
+    setRows(r => r.map(t => t.id === editTenant.id ? { ...t, ...payload } : t));
+    setShowEdit(false);
+    setEditTenant(null);
   };
 
   const load = () => {
@@ -101,8 +185,9 @@ export default function Tenants() {
       deposits:           nt.deposits,
       payment_day:        nt.payment_day || null,
       payment_method:     nt.payment_method || null,
-      pix_key:            nt.pix_key || null,
-      notes:              nt.notes || null,
+      pix_key:            nt.pix_key            || null,
+      telegram_username:  nt.telegram_username  || null,
+      notes:              nt.notes              || null,
       since:              new Date().toISOString().slice(0, 10),
       status:             'ativo',
       blacklisted:        false,
@@ -196,6 +281,12 @@ export default function Tenants() {
                     📋 PDF
                   </button>
                   <button
+                    style={{ ...S.btn('p'), padding: '6px 12px', fontSize: 12 }}
+                    onClick={() => openEdit(t)}
+                  >
+                    ✏
+                  </button>
+                  <button
                     style={{ ...S.btn('d'), padding: '6px 12px', fontSize: 12 }}
                     onClick={() => handleDelete(t.id, t.name)}
                   >
@@ -223,6 +314,175 @@ export default function Tenants() {
           ))}
         </div>
       )}
+
+      {/* ── Modal Editar Locatário ── */}
+      {showEdit && editTenant && (() => {
+        const currentVeh = editTenant.vehicles;
+        const editVehicleOpts = [
+          ...(currentVeh && editTenant.vehicle_id ? [{ id: editTenant.vehicle_id, brand: currentVeh.brand, model: currentVeh.model, plate: currentVeh.plate }] : []),
+          ...vehicles.filter(v => v.id !== editTenant.vehicle_id),
+        ];
+        return (
+          <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowEdit(false); setError(null); } }}>
+            <div style={S.mbox}>
+              <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>✏ Editar Locatário</div>
+              <div style={{ color: '#64748b', fontSize: 13, marginBottom: 18 }}>{editTenant.name}</div>
+
+              <Sec t="— Dados Pessoais" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={S.lbl}>Nome *</label>
+                  <input style={S.inp} value={et.name} onChange={e => etf('name', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>CPF</label>
+                  <input style={S.inp} placeholder="000.000.000-00" value={et.cpf} onChange={e => etf('cpf', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>RG</label>
+                  <input style={S.inp} placeholder="00.000.000-0" value={et.rg} onChange={e => etf('rg', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Nascimento</label>
+                  <input style={S.inp} type="date" value={et.birth_date} onChange={e => etf('birth_date', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Telefone</label>
+                  <input style={S.inp} placeholder="(11) 99999-9999" value={et.phone} onChange={e => etf('phone', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Telefone 2</label>
+                  <input style={S.inp} placeholder="(11) 99999-9999" value={et.phone2} onChange={e => etf('phone2', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>E-mail</label>
+                  <input style={S.inp} placeholder="email@exemplo.com" value={et.email} onChange={e => etf('email', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Telegram Username</label>
+                  <input style={S.inp} placeholder="@usuario" value={et.telegram_username} onChange={e => etf('telegram_username', e.target.value)} />
+                </div>
+              </div>
+
+              <Sec t="— CNH & App" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div>
+                  <label style={S.lbl}>CNH</label>
+                  <input style={S.inp} placeholder="00000000000" value={et.cnh} onChange={e => etf('cnh', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Categoria</label>
+                  <select style={S.inp} value={et.cnh_category} onChange={e => etf('cnh_category', e.target.value)}>
+                    {['A', 'B', 'AB', 'C', 'D', 'E'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.lbl}>App</label>
+                  <select style={S.inp} value={et.app_used} onChange={e => etf('app_used', e.target.value)}>
+                    {['Uber', '99', 'InDriver', 'Lyft', 'Outro'].map(a => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.lbl}>Avaliação</label>
+                  <input style={S.inp} placeholder="4.87" value={et.app_rating} onChange={e => etf('app_rating', e.target.value)} />
+                </div>
+              </div>
+
+              <Sec t="— Endereço" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={S.lbl}>Rua e Número</label>
+                  <input style={S.inp} placeholder="Rua das Flores, 123" value={et.address} onChange={e => etf('address', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Bairro</label>
+                  <input style={S.inp} placeholder="Vila Mariana" value={et.bairro} onChange={e => etf('bairro', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Cidade</label>
+                  <input style={S.inp} placeholder="São Paulo" value={et.cidade} onChange={e => etf('cidade', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Estado</label>
+                  <input style={S.inp} placeholder="SP" value={et.estado} onChange={e => etf('estado', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>CEP</label>
+                  <input style={S.inp} placeholder="00000-000" value={et.cep} onChange={e => etf('cep', e.target.value)} />
+                </div>
+              </div>
+
+              <Sec t="— Emergência" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div>
+                  <label style={S.lbl}>Nome</label>
+                  <input style={S.inp} placeholder="Maria da Silva" value={et.emergency_name} onChange={e => etf('emergency_name', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Parentesco</label>
+                  <input style={S.inp} placeholder="Mãe" value={et.emergency_relation} onChange={e => etf('emergency_relation', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Telefone</label>
+                  <input style={S.inp} placeholder="(11) 99999-9999" value={et.emergency_phone} onChange={e => etf('emergency_phone', e.target.value)} />
+                </div>
+              </div>
+
+              <Sec t="— Contrato & Pagamento" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div>
+                  <label style={S.lbl}>Veículo</label>
+                  <select style={S.inp} value={et.vehicle_id} onChange={e => etf('vehicle_id', e.target.value)}>
+                    <option value="">Nenhum</option>
+                    {editVehicleOpts.map(v => (
+                      <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.lbl}>Aluguel/Sem R$</label>
+                  <input style={S.inp} type="number" value={et.rent_weekly} onChange={e => etf('rent_weekly', Number(e.target.value))} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Caução R$</label>
+                  <input style={S.inp} type="number" value={et.deposits} onChange={e => etf('deposits', Number(e.target.value))} />
+                </div>
+                <div>
+                  <label style={S.lbl}>Pagamento</label>
+                  <select style={S.inp} value={et.payment_method} onChange={e => etf('payment_method', e.target.value)}>
+                    {['Pix', 'Dinheiro', 'Transferência'].map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.lbl}>Dia</label>
+                  <select style={S.inp} value={et.payment_day} onChange={e => etf('payment_day', e.target.value)}>
+                    {['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'].map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.lbl}>Chave Pix</label>
+                  <input style={S.inp} placeholder="CPF ou e-mail" value={et.pix_key} onChange={e => etf('pix_key', e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={S.lbl}>Obs</label>
+                <textarea style={{ ...S.inp, minHeight: 55, resize: 'vertical' }} value={et.notes} onChange={e => etf('notes', e.target.value)} />
+              </div>
+
+              {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 10 }}>⚠ {error}</div>}
+              <div style={{ display: 'flex', gap: 9 }}>
+                <button style={S.btn('s')} onClick={handleUpdate} disabled={saving}>
+                  {saving ? 'Salvando...' : '✅ Salvar'}
+                </button>
+                <button style={S.btn('g')} onClick={() => { setShowEdit(false); setError(null); }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Modal Cadastrar Locatário ── */}
       {showAdd && (
@@ -260,6 +520,10 @@ export default function Tenants() {
               <div>
                 <label style={S.lbl}>E-mail</label>
                 <input style={S.inp} placeholder="email@exemplo.com" value={nt.email} onChange={e => ntf('email', e.target.value)} />
+              </div>
+              <div>
+                <label style={S.lbl}>Telegram Username</label>
+                <input style={S.inp} placeholder="@usuario" value={nt.telegram_username} onChange={e => ntf('telegram_username', e.target.value)} />
               </div>
             </div>
 
