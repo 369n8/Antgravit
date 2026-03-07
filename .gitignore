@@ -16,3 +16,4 @@ __pycache__/
 vcl/
 venv/
 ENV/
+.DS_Store
