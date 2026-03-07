@@ -126,7 +126,24 @@ function TenantExtrato({ tenant, payments, onClose, onReceiptUpdate }) {
 
   const [uploadingId, setUploadingId] = useState(null);
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [checkoutId, setCheckoutId]   = useState(null); // payment_id em processamento
   const fileRefs = useRef({});
+
+  const handleStripeCheckout = async (paymentId) => {
+    setCheckoutId(paymentId);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { payment_id: paymentId },
+      });
+      if (error || !data?.url) throw new Error(error?.message ?? 'Sem URL de pagamento');
+      window.location.href = data.url;
+    } catch (err) {
+      console.error('[stripe]', err);
+      alert('Erro ao abrir pagamento: ' + err.message);
+    } finally {
+      setCheckoutId(null);
+    }
+  };
 
   const handleReceiptUpload = useCallback(async (paymentId, file) => {
     if (!file) return;
@@ -247,6 +264,32 @@ function TenantExtrato({ tenant, payments, onClose, onReceiptUpdate }) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Pagar Agora — apenas para pendentes */}
+                  {!p.paid_status && (
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        onClick={() => handleStripeCheckout(p.id)}
+                        disabled={checkoutId === p.id}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          borderRadius: 12,
+                          border: 'none',
+                          background: checkoutId === p.id ? '#E8E8E6' : '#FFC524',
+                          color: checkoutId === p.id ? '#9CA3AF' : '#111827',
+                          fontFamily: 'inherit',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: checkoutId === p.id ? 'not-allowed' : 'pointer',
+                          letterSpacing: '-0.2px',
+                          transition: 'background .15s',
+                        }}
+                      >
+                        {checkoutId === p.id ? 'Abrindo pagamento...' : `Pagar R$ ${fmt(p.value_amount)}`}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Comprovante */}
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
