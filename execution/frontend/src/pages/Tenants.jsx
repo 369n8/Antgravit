@@ -165,7 +165,7 @@ export default function Tenants() {
     setLoading(true);
     Promise.all([
       supabase.from('tenants')
-        .select('*, vehicles(plate, brand, model, type), payments(paid_status)')
+        .select('*, vehicles!vehicle_id(plate, brand, model, type), payments(paid_status)')
         .order('created_at', { ascending: false }),
       supabase.from('vehicles')
         .select('id, brand, model, plate, type, status')
