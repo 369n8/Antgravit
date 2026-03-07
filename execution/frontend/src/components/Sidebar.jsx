@@ -18,7 +18,6 @@ export default function Sidebar({ page, onNavigate }) {
   const [saving, setSaving]           = useState(false);
   const [tgError, setTgError]         = useState('');
 
-  /* Carrega o username salvo */
   useEffect(() => {
     if (!user) return;
     supabase
@@ -54,8 +53,7 @@ export default function Sidebar({ page, onNavigate }) {
     <>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <h2>FrotaApp</h2>
-          <span>Gestão de Frotas</span>
+          <img src="/logo.png" alt="myfrot.ai" style={{ width: '100%', maxWidth: 180, height: 'auto', objectFit: 'contain', display: 'block' }} />
         </div>
 
         <nav className="sidebar-nav">
@@ -72,7 +70,6 @@ export default function Sidebar({ page, onNavigate }) {
         </nav>
 
         <div className="sidebar-footer">
-          {/* Botão Conectar Telegram */}
           <button
             onClick={() => { setShowTg(true); setTgError(''); }}
             style={{
@@ -80,9 +77,9 @@ export default function Sidebar({ page, onNavigate }) {
               marginBottom: 10,
               padding: '9px 12px',
               borderRadius: 10,
-              border: `1px solid ${isConnected ? '#22c55e40' : '#6366f140'}`,
-              background: isConnected ? '#22c55e0d' : '#6366f10d',
-              color: isConnected ? '#22c55e' : '#818cf8',
+              border: `1px solid ${isConnected ? 'rgba(143,156,130,0.4)' : '#E8E8E6'}`,
+              background: isConnected ? 'rgba(143,156,130,0.12)' : '#F6F6F4',
+              color: isConnected ? '#4A5441' : '#6B7280',
               fontFamily: 'inherit',
               fontSize: 12,
               fontWeight: 600,
@@ -95,7 +92,7 @@ export default function Sidebar({ page, onNavigate }) {
             <IconTelegram size={15} />
             {isConnected ? `@${tgSaved}` : 'Conectar Telegram'}
             {isConnected && (
-              <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+              <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: '#8F9C82', flexShrink: 0 }} />
             )}
           </button>
 
@@ -106,22 +103,22 @@ export default function Sidebar({ page, onNavigate }) {
         </div>
       </aside>
 
-      {/* ── Modal Telegram — estilo Bento Grid ── */}
+      {/* ── Modal Telegram ── */}
       {showTg && (
         <div
           onClick={e => { if (e.target === e.currentTarget) setShowTg(false); }}
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(8,13,26,.75)',
-            backdropFilter: 'blur(6px)',
+            background: 'rgba(0,0,0,.12)',
+            backdropFilter: 'blur(20px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 300, padding: 20,
           }}
         >
           <div style={{
             background: '#fff',
-            borderRadius: 24,
-            boxShadow: '0 24px 60px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.08)',
+            borderRadius: 28,
+            boxShadow: '0 20px 60px rgba(0,0,0,.08)',
             width: '100%',
             maxWidth: 420,
             overflow: 'hidden',
@@ -155,24 +152,24 @@ export default function Sidebar({ page, onNavigate }) {
                 { ic: '📋', t: 'Relatórios rápidos', d: 'Resumo diário direto no chat' },
               ].map((b, i) => (
                 <div key={i} style={{
-                  background: '#F5F5F0',
+                  background: '#F6F6F4',
                   borderRadius: 14,
                   padding: '12px 13px',
                 }}>
                   <div style={{ fontSize: 18, marginBottom: 4 }}>{b.ic}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{b.t}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{b.d}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{b.t}</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{b.d}</div>
                 </div>
               ))}
             </div>
 
             {/* Input + ação */}
             <div style={{ padding: '20px 24px 24px' }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
                 Seu @username do Telegram
               </label>
               <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 14, fontWeight: 600 }}>@</span>
+                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: 14, fontWeight: 600 }}>@</span>
                 <input
                   autoFocus
                   value={tgInput.replace(/^@/, '')}
@@ -183,17 +180,17 @@ export default function Sidebar({ page, onNavigate }) {
                     width: '100%',
                     padding: '11px 14px 11px 30px',
                     borderRadius: 12,
-                    border: `1.5px solid ${tgError ? '#ef4444' : '#e2e8f0'}`,
-                    background: '#F5F5F0',
+                    border: `1.5px solid ${tgError ? '#ef4444' : '#E8E8E6'}`,
+                    background: '#F3F4F6',
                     fontSize: 14,
-                    color: '#1e293b',
+                    color: '#111827',
                     outline: 'none',
                     boxSizing: 'border-box',
                     fontFamily: 'inherit',
                     transition: 'border-color .15s',
                   }}
                   onFocus={e => { e.target.style.borderColor = '#229ED9'; }}
-                  onBlur={e => { e.target.style.borderColor = tgError ? '#ef4444' : '#e2e8f0'; }}
+                  onBlur={e => { e.target.style.borderColor = tgError ? '#ef4444' : '#E8E8E6'; }}
                 />
               </div>
 
@@ -231,9 +228,9 @@ export default function Sidebar({ page, onNavigate }) {
                     style={{
                       padding: '11px 16px',
                       borderRadius: 12,
-                      border: '1.5px solid #e2e8f0',
+                      border: '1.5px solid #E8E8E6',
                       background: 'transparent',
-                      color: '#94a3b8',
+                      color: '#9CA3AF',
                       fontFamily: 'inherit',
                       fontSize: 13,
                       fontWeight: 600,
@@ -248,9 +245,9 @@ export default function Sidebar({ page, onNavigate }) {
                   style={{
                     padding: '11px 16px',
                     borderRadius: 12,
-                    border: '1.5px solid #e2e8f0',
+                    border: '1.5px solid #E8E8E6',
                     background: 'transparent',
-                    color: '#94a3b8',
+                    color: '#9CA3AF',
                     fontFamily: 'inherit',
                     fontSize: 13,
                     fontWeight: 600,

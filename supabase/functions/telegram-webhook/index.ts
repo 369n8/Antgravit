@@ -27,7 +27,8 @@ interface ToolCall {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const cleanUser = (u: string) => u.replace(/^@/, "").toLowerCase();
+const cleanUser    = (u: string) => u.replace(/^@/, "").toLowerCase();
+const normalizePlate = (p: string) => p.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 
 async function tgSend(chatId: number | string, text: string): Promise<void> {
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -179,7 +180,7 @@ const AI_TOOLS = [
         properties: {
           vehicle_plate: { type: "string", description: "Placa do veículo (ex: BRA2E25) para filtrar. Preferir em relação a vehicle_id quando a placa é conhecida." },
           vehicle_id:    { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
-          checkin_type:  { type: "string", enum: ["entrega", "devolucao", "todos"], description: "Padrão: todos." },
+          checkin_type:  { type: "string", enum: ["entrega", "devolucao", "exit", "todos"], description: "Padrão: todos. Use 'exit' para check-out de devolução." },
           limit:         { type: "number", description: "Máximo de registros. Use 1 para buscar apenas o mais recente." },
         },
       },
@@ -272,10 +273,51 @@ const AI_TOOLS = [
   {
     type: "function",
     function: {
+      name: "buscar_veiculo_por_nome",
+      description: [
+        "Busca veículos por marca, modelo ou cor usando ilike (busca parcial, case-insensitive).",
+        "Use quando a placa NÃO for informada e o admin mencionar um nome como 'Corolla', 'Civic', 'Toyota'.",
+        "Retorna id, plate, brand, model, status, current_tenant_id, rent_weekly.",
+        "Para criar um contrato, use o 'id' retornado como vehicle_id.",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          nome: { type: "string", description: "Texto parcial de marca, modelo ou cor. Ex: 'Corolla', 'Toyota', 'Prata'." },
+        },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "criar_contrato_locacao",
+      description: [
+        "Vincula um locatário a um veículo: atualiza vehicles.status='locado' e vehicles.current_tenant_id.",
+        "OBRIGATÓRIO usar quando o admin pedir 'criar contrato', 'locar veículo', 'vincular motorista ao carro', 'fazer contrato'.",
+        "Se não tiver os UUIDs: use listar_locatarios para buscar o tenant_id pelo nome, e buscar_veiculo_por_nome ou listar_checkins para obter o vehicle_id.",
+        "Confirma os dados e retorna resumo da vinculação.",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          tenant_id:   { type: "string", description: "UUID do locatário (tenants.id)." },
+          vehicle_id:  { type: "string", description: "UUID do veículo (vehicles.id)." },
+          rent_weekly: { type: "number", description: "Valor semanal opcional para atualizar no veículo." },
+        },
+        required: ["tenant_id", "vehicle_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "gerar_comprovante",
       description: [
-        "OBRIGATÓRIO usar quando o admin pedir 'gerar comprovante', 'comprovante de check-in', 'voucher' ou 'recibo de entrega/devolução' para um veículo.",
-        "Busca o último check-in do veículo e retorna o campo 'comprovante' com o texto formatado pronto para enviar.",
+        "OBRIGATÓRIO usar quando o admin pedir 'gerar comprovante', 'comprovante de check-in', 'voucher', 'recibo de entrega/devolução' ou 'resumo de devolução' para um veículo.",
+        "Busca o último check-in (incluindo checkout tipo 'exit') do veículo e retorna o campo 'comprovante' com o texto formatado pronto para enviar ao motorista via WhatsApp.",
+        "Se o último registro for tipo 'exit' (check-out), gera um Resumo de Devolução com os KM rodados na locação.",
         "Envie o campo 'comprovante' do resultado VERBATIM, sem alterar nenhuma palavra ou linha.",
       ].join(" "),
       parameters: {
@@ -352,7 +394,7 @@ async function executeTool(
     let vehicleId = args.vehicle_id as string | undefined;
     // Resolve plate → vehicle_id if needed
     if (!vehicleId && args.vehicle_plate) {
-      const plate = (args.vehicle_plate as string).replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const plate = normalizePlate((args.vehicle_plate as string) ?? "");
       const { data: veh } = await supabase.from("vehicles").select("id").ilike("plate", plate).limit(1).single();
       if (veh) vehicleId = veh.id;
     }
@@ -370,7 +412,7 @@ async function executeTool(
   if (name === "listar_manutencao") {
     let vehicleId = args.vehicle_id as string | undefined;
     if (!vehicleId && args.vehicle_plate) {
-      const plate = (args.vehicle_plate as string).replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const plate = normalizePlate((args.vehicle_plate as string) ?? "");
       const { data: veh } = await supabase.from("vehicles").select("id").ilike("plate", plate).limit(1).single();
       if (veh) vehicleId = veh.id;
     }
@@ -402,7 +444,7 @@ async function executeTool(
     let vehicleId: string | null = null;
     let clientId: string | null = null;
     if (args.vehicle_plate) {
-      const plate = (args.vehicle_plate as string).replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const plate = normalizePlate((args.vehicle_plate as string) ?? "");
       const { data: veh } = await supabase
         .from("vehicles")
         .select("id, client_id")
@@ -511,9 +553,62 @@ async function executeTool(
     };
   }
 
+  if (name === "buscar_veiculo_por_nome") {
+    const nome = ((args.nome as string) ?? "").trim();
+    if (!nome) return { error: "Parâmetro 'nome' é obrigatório." };
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("id, plate, brand, model, color, status, current_tenant_id, rent_weekly")
+      .or(`brand.ilike.%${nome}%,model.ilike.%${nome}%,color.ilike.%${nome}%`)
+      .order("brand");
+    if (error) return { error: error.message };
+    if (!data?.length) return { error: `Nenhum veículo encontrado com "${nome}".` };
+    return data;
+  }
+
+  if (name === "criar_contrato_locacao") {
+    const tenantId  = args.tenant_id  as string;
+    const vehicleId = args.vehicle_id as string;
+
+    // Buscar dados para validação e confirmação
+    const [tenantRes, vehicleRes] = await Promise.all([
+      supabase.from("tenants").select("id, name, phone, rent_weekly, status").eq("id", tenantId).single(),
+      supabase.from("vehicles").select("id, plate, brand, model, status, current_tenant_id").eq("id", vehicleId).single(),
+    ]);
+
+    if (tenantRes.error || !tenantRes.data) return { error: `Locatário não encontrado: ${tenantRes.error?.message ?? "ID inválido"}` };
+    if (vehicleRes.error || !vehicleRes.data) return { error: `Veículo não encontrado: ${vehicleRes.error?.message ?? "ID inválido"}` };
+
+    const tenant  = tenantRes.data;
+    const vehicle = vehicleRes.data;
+
+    if (vehicle.status === "locado") {
+      return { error: `Veículo ${vehicle.plate} já está locado. Faça o check-out antes de criar um novo contrato.` };
+    }
+
+    const vehicleUpdate: Record<string, unknown> = { status: "locado", current_tenant_id: tenantId };
+    if (args.rent_weekly) vehicleUpdate.rent_weekly = args.rent_weekly;
+
+    const { error: vErr } = await supabase.from("vehicles").update(vehicleUpdate).eq("id", vehicleId);
+    if (vErr) return { error: vErr.message };
+
+    // Garantir que o locatário fique com status ativo
+    await supabase.from("tenants").update({ status: "ativo" }).eq("id", tenantId);
+
+    return {
+      ok: true,
+      mensagem: "Contrato criado com sucesso.",
+      locatario: tenant.name,
+      telefone: tenant.phone ?? "—",
+      veiculo: `${vehicle.plate} — ${vehicle.brand} ${vehicle.model}`,
+      valor_semanal: `R$${args.rent_weekly ?? (vehicle as {rent_weekly?: number}).rent_weekly ?? "—"}`,
+      status_veiculo: "locado",
+    };
+  }
+
   if (name === "gerar_comprovante") {
     const rawPlate = (args.vehicle_plate as string) ?? "";
-    const plate = rawPlate.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const plate = normalizePlate(rawPlate);
 
     const { data: veh } = await supabase
       .from("vehicles")
@@ -541,28 +636,69 @@ async function executeTool(
     const dateStr = dt.toLocaleDateString("pt-BR") + " às " +
       dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-    const tipo   = ck.checkin_type === "entrega" ? "Entrega" : "Devolução";
     const kmStr  = ck.mileage ? Number(ck.mileage).toLocaleString("pt-BR") + " km" : "Não registrada";
     const photos = Array.isArray(ck.photos) && (ck.photos as unknown[]).length > 0
       ? `${(ck.photos as unknown[]).length} foto(s) documentadas no servidor seguro.`
       : "Documentadas no servidor seguro.";
+    const tenantName = (ck.tenants as { name?: string })?.name;
 
+    // ── Resumo de Devolução (checkout type 'exit') ─────────────────────────
+    if (ck.checkin_type === "exit") {
+      // Buscar o check-in de entrega mais recente antes deste checkout para calcular KM rodados
+      let kmDrivenStr = "";
+      if (ck.mileage) {
+        const { data: prevCk } = await supabase
+          .from("checkins")
+          .select("mileage")
+          .eq("vehicle_id", veh.id)
+          .neq("checkin_type", "exit")
+          .not("mileage", "is", null)
+          .lt("created_at", ck.created_at as string)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (prevCk?.mileage) {
+          const driven = Number(ck.mileage) - Number(prevCk.mileage);
+          if (driven > 0) kmDrivenStr = Number(driven).toLocaleString("pt-BR") + " km rodados nesta locação";
+        }
+      }
+
+      const lines = [
+        `*RESUMO DE DEVOLUCAO - MYFROTA*`,
+        ``,
+        `Veiculo: ${veh.plate} — ${veh.brand} ${veh.model}`,
+        `Data: ${dateStr}`,
+        `KM na devolucao: ${kmStr}`,
+      ];
+      if (kmDrivenStr) lines.push(`Total rodado: ${kmDrivenStr}`);
+      lines.push(`Tanque: ${fuelLabel}`);
+      lines.push(`Fotos: ${photos}`);
+      if (ck.notes) lines.push(`Obs: ${ck.notes}`);
+      if (tenantName) lines.push(`Motorista: ${tenantName}`);
+      lines.push(`---------------------------`);
+      lines.push(`Veiculo devolvido com sucesso. Obrigado pela preferencia!`);
+
+      return { ok: true, comprovante: lines.join("\n"), vehicle: veh.plate, tipo: "devolucao" };
+    }
+
+    // ── Comprovante de Check-in (entrega / devolucao) ──────────────────────
+    const tipo = ck.checkin_type === "entrega" ? "Entrega" : "Devolucao";
     const lines = [
-      `*✅ COMPROVANTE DE CHECK-IN - MYFROTA*`,
+      `*COMPROVANTE DE CHECK-IN - MYFROTA*`,
       ``,
-      `🚗 *Veículo:* ${veh.plate} — ${veh.brand} ${veh.model}`,
-      `📋 *Tipo:* ${tipo}`,
-      `📅 *Data:* ${dateStr}`,
-      `🛣️ *KM:* ${kmStr}`,
-      `⛽ *Tanque:* ${fuelLabel}`,
-      `📸 *Fotos:* ${photos}`,
+      `Veiculo: ${veh.plate} — ${veh.brand} ${veh.model}`,
+      `Tipo: ${tipo}`,
+      `Data: ${dateStr}`,
+      `KM: ${kmStr}`,
+      `Tanque: ${fuelLabel}`,
+      `Fotos: ${photos}`,
     ];
-    if (ck.notes) lines.push(`📝 *Obs:* ${ck.notes}`);
-    if ((ck.tenants as { name?: string })?.name) lines.push(`👤 *Motorista:* ${(ck.tenants as { name: string }).name}`);
+    if (ck.notes) lines.push(`Obs: ${ck.notes}`);
+    if (tenantName) lines.push(`Motorista: ${tenantName}`);
     lines.push(`---------------------------`);
-    lines.push(`_Favor conferir os dados acima antes de iniciar a viagem._`);
+    lines.push(`Favor conferir os dados acima antes de iniciar a viagem.`);
 
-    return { ok: true, comprovante: lines.join("\n"), vehicle: veh.plate };
+    return { ok: true, comprovante: lines.join("\n"), vehicle: veh.plate, tipo: "checkin" };
   }
 
   return { error: `Ferramenta desconhecida: ${name}` };
@@ -708,7 +844,8 @@ E. Registrar multa → registrar_multa(vehicle_plate=...). Atualizar dados → a
 F. NUNCA invente dados. SEMPRE chame uma ferramenta antes de responder. NUNCA diga "não tenho acesso".
 G. Terminologia de combustível: "Cheio"=100%, "3/4"=75%, "Meio Tanque" ou "Meio"=50%, "1/4"=25%, "Reserva"=10%. fuel_level no banco é inteiro 0-100.
 H. Ao listar use marcadores (• veículo — dado — status). Responda em português, direto, executivo.
-I. "Gerar comprovante", "comprovante de check-in", "voucher", "recibo" → gerar_comprovante(vehicle_plate=...). Envie o campo 'comprovante' do resultado EXATAMENTE como retornado, sem alterar nenhuma linha ou caractere.`;
+I. "Gerar comprovante", "comprovante de check-in", "voucher", "recibo", "resumo de devolucao", "resumo da devolucao" → gerar_comprovante(vehicle_plate=...). Envie o campo 'comprovante' do resultado EXATAMENTE como retornado, sem alterar nenhuma linha ou caractere. Se o último registro do veículo for um check-out (tipo exit), o resumo de devolução será gerado automaticamente.
+J. "Criar contrato", "locar veículo", "vincular motorista", "fazer contrato para [Nome] com [Carro]" → 1) use listar_locatarios(status="todos") para encontrar o tenant_id pelo nome do motorista; 2) se a placa for conhecida use listar_checkins(vehicle_plate=...,limit=1) para obter o vehicle_id, senão use buscar_veiculo_por_nome(nome=...); 3) com ambos os IDs em mãos, chame criar_contrato_locacao(tenant_id=..., vehicle_id=...). Confirme: "Contrato criado: [Motorista] → [Placa Modelo] por R$X/semana."`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },

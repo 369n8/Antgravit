@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { generateContractPDF } from '../components/ContractGenerator';
+import { Plus, FileText, Link, Pencil, Trash2 } from 'lucide-react';
 
 const BLANK = {
   name: '', cpf: '', rg: '', birth_date: '', phone: '', phone2: '', email: '',
@@ -14,18 +15,34 @@ const BLANK = {
   notes: '',
 };
 
+const PASTEL = {
+  '#22c55e': ['rgba(143,156,130,0.18)', '#4A5441'],
+  '#ef4444': ['#E6C6C6',               '#7A3B3B'],
+  '#f59e0b': ['#FFF0C2',               '#7A5800'],
+  '#3b82f6': ['#DDEAF3',               '#2D5085'],
+  '#64748b': ['#EBEBEB',               '#4B5563'],
+};
+
 const S = {
-  card: { background: 'linear-gradient(135deg,#0f172a,#1e293b)', border: '1px solid #334155', borderRadius: 16, padding: 20 },
-  bdg:  c => ({ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: `${c}20`, color: c, border: `1px solid ${c}40`, letterSpacing: '.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }),
-  btn:  (v = 'p') => ({ padding: '9px 17px', borderRadius: 10, border: 'none', background: v === 'p' ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : v === 's' ? 'linear-gradient(135deg,#22c55e,#16a34a)' : v === 'd' ? 'linear-gradient(135deg,#ef4444,#dc2626)' : '#1e293b', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }),
-  inp:  { background: '#0a0f1e', border: '1px solid #334155', borderRadius: 8, padding: '9px 12px', color: '#e2e8f0', fontFamily: 'inherit', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' },
-  lbl:  { fontSize: 11, color: '#64748b', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 5, display: 'block' },
-  ovl:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 },
-  mbox: { background: '#0f172a', border: '1px solid #334155', borderRadius: 20, padding: 24, width: '100%', maxWidth: 700, maxHeight: '92vh', overflowY: 'auto' },
+  card: { background: '#fff', borderRadius: 24, padding: 20, boxShadow: 'none', border: '1px solid #EBEBEB' },
+  bdg:  c => {
+    const [bg, text] = PASTEL[c] ?? ['#EBEBEB', '#4B5563'];
+    return { display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:999, fontSize:11, fontWeight:600, background:bg, color:text, whiteSpace:'nowrap' };
+  },
+  btn:  (v = 'p') => ({
+    padding: '10px 22px', borderRadius: 999, border: 'none',
+    background: v==='p' ? '#FFC524' : v==='s' ? 'rgba(143,156,130,0.18)' : v==='d' ? '#E6C6C6' : '#F6F6F4',
+    color: v==='p' ? '#111827' : v==='s' ? '#4A5441' : v==='d' ? '#7A3B3B' : '#374151',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+  }),
+  inp:  { background: '#F6F6F4', border: 'none', borderRadius: 12, padding: '10px 14px', color: '#111827', fontFamily: 'inherit', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' },
+  lbl:  { fontSize: 11, color: '#9CA3AF', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 6, display: 'block', fontWeight: 600 },
+  ovl:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.12)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 },
+  mbox: { background: '#fff', borderRadius: 28, padding: 32, width: '100%', maxWidth: 700, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.08)', border: '1px solid #EBEBEB' },
 };
 
 const Sec = ({ t }) => (
-  <div style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 10, borderBottom: '1px solid #6366f130', paddingBottom: 6 }}>{t}</div>
+  <div style={{ fontSize: 11, fontWeight: 700, color: '#FFC524', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 10, borderBottom: '2px solid #FFC52430', paddingBottom: 6 }}>{t}</div>
 );
 
 function ptDate(dateStr) {
@@ -217,18 +234,15 @@ export default function Tenants() {
   const encerrados = rows.filter(t => t.status === 'encerrado');
 
   return (
-    <div style={{ padding: 24 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>👥 Locatários</div>
-        <button style={S.btn()} onClick={() => setShowAdd(true)}>+ Cadastrar</button>
+    <div className="page">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+        <button style={S.btn()} onClick={() => setShowAdd(true)}><Plus size={14} /> Cadastrar</button>
       </div>
 
       {/* Cards ativos */}
       {ativos.length === 0 ? (
         <div style={{ ...S.card, textAlign: 'center', padding: 50 }}>
-          <div style={{ fontSize: 44, marginBottom: 11 }}>👥</div>
-          <div style={{ color: '#64748b', marginBottom: 15 }}>Nenhum locatário ativo</div>
+          <div style={{ color: '#9CA3AF', marginBottom: 15 }}>Nenhum locatário ativo</div>
           <button style={{ ...S.btn(), margin: '0 auto', justifyContent: 'center' }} onClick={() => setShowAdd(true)}>
             Cadastrar primeiro
           </button>
@@ -241,16 +255,16 @@ export default function Tenants() {
             const veh       = t.vehicles;
 
             return (
-              <div key={t.id} style={{ ...S.card, border: `1px solid ${pendCount > 0 ? '#ef444440' : t.blacklisted ? '#f59e0b40' : '#334155'}` }}>
+              <div key={t.id} style={{ ...S.card, border: `1px solid ${pendCount > 0 ? '#E6C6C6' : t.blacklisted ? '#F5D98B' : '#EBEBEB'}` }}>
                 {/* Avatar + nome */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 13 }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, flexShrink: 0 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#FFC524', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, flexShrink: 0, color: '#000' }}>
                       {t.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{t.name}</div>
+                      <div style={{ fontSize: 12, color: '#9CA3AF' }}>
                         {t.app_used ?? '—'} {t.app_rating ? `⭐${t.app_rating}` : ''}
                       </div>
                     </div>
@@ -262,17 +276,17 @@ export default function Tenants() {
 
                 {/* Veículo vinculado */}
                 {veh && (
-                  <div style={{ background: '#080d1a', borderRadius: 8, padding: '7px 10px', marginBottom: 11, display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 13 }}>{veh.type === 'moto' ? '🏍️' : '🚗'} {veh.brand} {veh.model}</span>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>{veh.plate}</span>
+                  <div style={{ background: '#F6F6F4', borderRadius: 12, padding: '7px 10px', marginBottom: 11, display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 13, color: '#374151' }}>{veh.brand} {veh.model}</span>
+                    <span style={{ fontSize: 12, color: '#9CA3AF' }}>{veh.plate}</span>
                   </div>
                 )}
 
                 {/* Status Telegram */}
                 {t.telegram_username && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '5px 8px', borderRadius: 8, background: '#080d1a' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.telegram_chat_id ? '#229ED9' : '#475569', flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, color: t.telegram_chat_id ? '#229ED9' : '#64748b' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '5px 8px', borderRadius: 10, background: '#F6F6F4' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.telegram_chat_id ? '#8F9C82' : '#D1D5DB', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: t.telegram_chat_id ? '#4A5441' : '#9CA3AF' }}>
                       {t.telegram_chat_id ? `Telegram vinculado` : `@${t.telegram_username} — pendente`}
                     </span>
                   </div>
@@ -281,45 +295,45 @@ export default function Tenants() {
                 {/* Mini-cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
-                    [`R$${t.rent_weekly ?? 0}`, '/Sem', '#6366f1'],
-                    [t.blacklisted ? '⛔' : '✓',        'BL',   t.blacklisted ? '#ef4444' : '#22c55e'],
-                    [`${pendCount}`,                     pendCount > 0 ? 'Pend.' : 'OK', pendCount > 0 ? '#ef4444' : '#22c55e'],
+                    [`R$${t.rent_weekly ?? 0}`, '/Sem',     '#111827'],
+                    [t.blacklisted ? 'BL' : 'OK', 'Blacklist', t.blacklisted ? '#7A3B3B' : '#4A5441'],
+                    [`${pendCount}`, pendCount > 0 ? 'Pend.' : 'OK', pendCount > 0 ? '#7A3B3B' : '#4A5441'],
                   ].map(([val, lbl, color], i) => (
-                    <div key={i} style={{ background: '#080d1a', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
+                    <div key={i} style={{ background: '#F6F6F4', borderRadius: 10, padding: '6px 4px', textAlign: 'center' }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color }}>{val}</div>
-                      <div style={{ fontSize: 9, color: '#64748b' }}>{lbl}</div>
+                      <div style={{ fontSize: 9, color: '#9CA3AF' }}>{lbl}</div>
                     </div>
                   ))}
                 </div>
 
                 {/* Rodapé */}
-                <div style={{ display: 'flex', gap: 7, borderTop: '1px solid #1e293b', paddingTop: 10, marginTop: 10 }}>
+                <div style={{ display: 'flex', gap: 7, borderTop: '1px solid #F6F6F4', paddingTop: 10, marginTop: 10 }}>
                   <button
                     style={{ ...S.btn('s'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: 11 }}
                     onClick={() => generateContractPDF(t, veh)}
                   >
-                    📋 PDF
+                    <FileText size={12} /> PDF
                   </button>
                   {!t.telegram_chat_id && (
                     <button
                       title="Copiar link de ativação do Telegram"
-                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #334155', background: copiedId === t.id ? '#22c55e22' : '#1e293b', color: copiedId === t.id ? '#22c55e' : '#64748b', fontFamily: 'inherit', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #E8E8E6', background: copiedId === t.id ? 'rgba(143,156,130,0.18)' : '#F6F6F4', color: copiedId === t.id ? '#4A5441' : '#9CA3AF', fontFamily: 'inherit', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}
                       onClick={() => copyLink(t.id)}
                     >
-                      {copiedId === t.id ? '✓ Copiado' : '🔗 Link'}
+                      <Link size={11} /> {copiedId === t.id ? 'Copiado' : 'Link'}
                     </button>
                   )}
                   <button
                     style={{ ...S.btn('p'), padding: '6px 12px', fontSize: 12 }}
                     onClick={() => openEdit(t)}
                   >
-                    ✏
+                    <Pencil size={12} />
                   </button>
                   <button
                     style={{ ...S.btn('d'), padding: '6px 12px', fontSize: 12 }}
                     onClick={() => handleDelete(t.id, t.name)}
                   >
-                    🗑
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
@@ -331,12 +345,12 @@ export default function Tenants() {
       {/* Encerrados */}
       {encerrados.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 14, color: '#64748b', fontWeight: 700, marginBottom: 12 }}>📁 Contratos Encerrados</div>
+          <div style={{ fontSize: 14, color: '#9CA3AF', fontWeight: 700, marginBottom: 12 }}>Contratos Encerrados</div>
           {encerrados.map(t => (
             <div key={t.id} style={{ ...S.card, marginBottom: 8, opacity: 0.65, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 600 }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>CPF: {t.cpf ?? '—'} • {t.phone ?? '—'}</div>
+                <div style={{ fontWeight: 600, color: '#111827' }}>{t.name}</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF' }}>CPF: {t.cpf ?? '—'} • {t.phone ?? '—'}</div>
               </div>
               <div style={S.bdg('#64748b')}>Encerrado</div>
             </div>
@@ -354,8 +368,8 @@ export default function Tenants() {
         return (
           <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowEdit(false); setError(null); } }}>
             <div style={S.mbox}>
-              <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>✏ Editar Locatário</div>
-              <div style={{ color: '#64748b', fontSize: 13, marginBottom: 18 }}>{editTenant.name}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4, color: '#111827' }}>Editar Locatário</div>
+              <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 18 }}>{editTenant.name}</div>
 
               <Sec t="— Dados Pessoais" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
@@ -363,98 +377,37 @@ export default function Tenants() {
                   <label style={S.lbl}>Nome *</label>
                   <input style={S.inp} value={et.name} onChange={e => etf('name', e.target.value)} />
                 </div>
-                <div>
-                  <label style={S.lbl}>CPF</label>
-                  <input style={S.inp} placeholder="000.000.000-00" value={et.cpf} onChange={e => etf('cpf', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>RG</label>
-                  <input style={S.inp} placeholder="00.000.000-0" value={et.rg} onChange={e => etf('rg', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Nascimento</label>
-                  <input style={S.inp} type="date" value={et.birth_date} onChange={e => etf('birth_date', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Telefone</label>
-                  <input style={S.inp} placeholder="(11) 99999-9999" value={et.phone} onChange={e => etf('phone', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Telefone 2</label>
-                  <input style={S.inp} placeholder="(11) 99999-9999" value={et.phone2} onChange={e => etf('phone2', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>E-mail</label>
-                  <input style={S.inp} placeholder="email@exemplo.com" value={et.email} onChange={e => etf('email', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Telegram Username</label>
-                  <input style={S.inp} placeholder="@usuario" value={et.telegram_username} onChange={e => etf('telegram_username', e.target.value)} />
-                </div>
+                <div><label style={S.lbl}>CPF</label><input style={S.inp} placeholder="000.000.000-00" value={et.cpf} onChange={e => etf('cpf', e.target.value)} /></div>
+                <div><label style={S.lbl}>RG</label><input style={S.inp} placeholder="00.000.000-0" value={et.rg} onChange={e => etf('rg', e.target.value)} /></div>
+                <div><label style={S.lbl}>Nascimento</label><input style={S.inp} type="date" value={et.birth_date} onChange={e => etf('birth_date', e.target.value)} /></div>
+                <div><label style={S.lbl}>Telefone</label><input style={S.inp} placeholder="(11) 99999-9999" value={et.phone} onChange={e => etf('phone', e.target.value)} /></div>
+                <div><label style={S.lbl}>Telefone 2</label><input style={S.inp} placeholder="(11) 99999-9999" value={et.phone2} onChange={e => etf('phone2', e.target.value)} /></div>
+                <div><label style={S.lbl}>E-mail</label><input style={S.inp} placeholder="email@exemplo.com" value={et.email} onChange={e => etf('email', e.target.value)} /></div>
+                <div><label style={S.lbl}>Telegram Username</label><input style={S.inp} placeholder="@usuario" value={et.telegram_username} onChange={e => etf('telegram_username', e.target.value)} /></div>
               </div>
 
               <Sec t="— CNH & App" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-                <div>
-                  <label style={S.lbl}>CNH</label>
-                  <input style={S.inp} placeholder="00000000000" value={et.cnh} onChange={e => etf('cnh', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Categoria</label>
-                  <select style={S.inp} value={et.cnh_category} onChange={e => etf('cnh_category', e.target.value)}>
-                    {['A', 'B', 'AB', 'C', 'D', 'E'].map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={S.lbl}>App</label>
-                  <select style={S.inp} value={et.app_used} onChange={e => etf('app_used', e.target.value)}>
-                    {['Uber', '99', 'InDriver', 'Lyft', 'Outro'].map(a => <option key={a}>{a}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={S.lbl}>Avaliação</label>
-                  <input style={S.inp} placeholder="4.87" value={et.app_rating} onChange={e => etf('app_rating', e.target.value)} />
-                </div>
+                <div><label style={S.lbl}>CNH</label><input style={S.inp} placeholder="00000000000" value={et.cnh} onChange={e => etf('cnh', e.target.value)} /></div>
+                <div><label style={S.lbl}>Categoria</label><select style={S.inp} value={et.cnh_category} onChange={e => etf('cnh_category', e.target.value)}>{['A','B','AB','C','D','E'].map(c => <option key={c}>{c}</option>)}</select></div>
+                <div><label style={S.lbl}>App</label><select style={S.inp} value={et.app_used} onChange={e => etf('app_used', e.target.value)}>{['Uber','99','InDriver','Lyft','Outro'].map(a => <option key={a}>{a}</option>)}</select></div>
+                <div><label style={S.lbl}>Avaliação</label><input style={S.inp} placeholder="4.87" value={et.app_rating} onChange={e => etf('app_rating', e.target.value)} /></div>
               </div>
 
               <Sec t="— Endereço" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                <div style={{ gridColumn: '1/-1' }}>
-                  <label style={S.lbl}>Rua e Número</label>
-                  <input style={S.inp} placeholder="Rua das Flores, 123" value={et.address} onChange={e => etf('address', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Bairro</label>
-                  <input style={S.inp} placeholder="Vila Mariana" value={et.bairro} onChange={e => etf('bairro', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Cidade</label>
-                  <input style={S.inp} placeholder="São Paulo" value={et.cidade} onChange={e => etf('cidade', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Estado</label>
-                  <input style={S.inp} placeholder="SP" value={et.estado} onChange={e => etf('estado', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>CEP</label>
-                  <input style={S.inp} placeholder="00000-000" value={et.cep} onChange={e => etf('cep', e.target.value)} />
-                </div>
+                <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Rua e Número</label><input style={S.inp} placeholder="Rua das Flores, 123" value={et.address} onChange={e => etf('address', e.target.value)} /></div>
+                <div><label style={S.lbl}>Bairro</label><input style={S.inp} placeholder="Vila Mariana" value={et.bairro} onChange={e => etf('bairro', e.target.value)} /></div>
+                <div><label style={S.lbl}>Cidade</label><input style={S.inp} placeholder="São Paulo" value={et.cidade} onChange={e => etf('cidade', e.target.value)} /></div>
+                <div><label style={S.lbl}>Estado</label><input style={S.inp} placeholder="SP" value={et.estado} onChange={e => etf('estado', e.target.value)} /></div>
+                <div><label style={S.lbl}>CEP</label><input style={S.inp} placeholder="00000-000" value={et.cep} onChange={e => etf('cep', e.target.value)} /></div>
               </div>
 
               <Sec t="— Emergência" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-                <div>
-                  <label style={S.lbl}>Nome</label>
-                  <input style={S.inp} placeholder="Maria da Silva" value={et.emergency_name} onChange={e => etf('emergency_name', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Parentesco</label>
-                  <input style={S.inp} placeholder="Mãe" value={et.emergency_relation} onChange={e => etf('emergency_relation', e.target.value)} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Telefone</label>
-                  <input style={S.inp} placeholder="(11) 99999-9999" value={et.emergency_phone} onChange={e => etf('emergency_phone', e.target.value)} />
-                </div>
+                <div><label style={S.lbl}>Nome</label><input style={S.inp} placeholder="Maria da Silva" value={et.emergency_name} onChange={e => etf('emergency_name', e.target.value)} /></div>
+                <div><label style={S.lbl}>Parentesco</label><input style={S.inp} placeholder="Mãe" value={et.emergency_relation} onChange={e => etf('emergency_relation', e.target.value)} /></div>
+                <div><label style={S.lbl}>Telefone</label><input style={S.inp} placeholder="(11) 99999-9999" value={et.emergency_phone} onChange={e => etf('emergency_phone', e.target.value)} /></div>
               </div>
 
               <Sec t="— Contrato & Pagamento" />
@@ -463,35 +416,14 @@ export default function Tenants() {
                   <label style={S.lbl}>Veículo</label>
                   <select style={S.inp} value={et.vehicle_id} onChange={e => etf('vehicle_id', e.target.value)}>
                     <option value="">Nenhum</option>
-                    {editVehicleOpts.map(v => (
-                      <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>
-                    ))}
+                    {editVehicleOpts.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label style={S.lbl}>Aluguel/Sem R$</label>
-                  <input style={S.inp} type="number" value={et.rent_weekly} onChange={e => etf('rent_weekly', Number(e.target.value))} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Caução R$</label>
-                  <input style={S.inp} type="number" value={et.deposits} onChange={e => etf('deposits', Number(e.target.value))} />
-                </div>
-                <div>
-                  <label style={S.lbl}>Pagamento</label>
-                  <select style={S.inp} value={et.payment_method} onChange={e => etf('payment_method', e.target.value)}>
-                    {['Pix', 'Dinheiro', 'Transferência'].map(m => <option key={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={S.lbl}>Dia</label>
-                  <select style={S.inp} value={et.payment_day} onChange={e => etf('payment_day', e.target.value)}>
-                    {['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'].map(d => <option key={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={S.lbl}>Chave Pix</label>
-                  <input style={S.inp} placeholder="CPF ou e-mail" value={et.pix_key} onChange={e => etf('pix_key', e.target.value)} />
-                </div>
+                <div><label style={S.lbl}>Aluguel/Sem R$</label><input style={S.inp} type="number" value={et.rent_weekly} onChange={e => etf('rent_weekly', Number(e.target.value))} /></div>
+                <div><label style={S.lbl}>Caução R$</label><input style={S.inp} type="number" value={et.deposits} onChange={e => etf('deposits', Number(e.target.value))} /></div>
+                <div><label style={S.lbl}>Pagamento</label><select style={S.inp} value={et.payment_method} onChange={e => etf('payment_method', e.target.value)}>{['Pix','Dinheiro','Transferência'].map(m => <option key={m}>{m}</option>)}</select></div>
+                <div><label style={S.lbl}>Dia</label><select style={S.inp} value={et.payment_day} onChange={e => etf('payment_day', e.target.value)}>{['segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'].map(d => <option key={d}>{d}</option>)}</select></div>
+                <div><label style={S.lbl}>Chave Pix</label><input style={S.inp} placeholder="CPF ou e-mail" value={et.pix_key} onChange={e => etf('pix_key', e.target.value)} /></div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -499,14 +431,10 @@ export default function Tenants() {
                 <textarea style={{ ...S.inp, minHeight: 55, resize: 'vertical' }} value={et.notes} onChange={e => etf('notes', e.target.value)} />
               </div>
 
-              {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 10 }}>⚠ {error}</div>}
+              {error && <div style={{ color: '#7A3B3B', fontSize: 13, marginBottom: 10 }}>⚠ {error}</div>}
               <div style={{ display: 'flex', gap: 9 }}>
-                <button style={S.btn('s')} onClick={handleUpdate} disabled={saving}>
-                  {saving ? 'Salvando...' : '✅ Salvar'}
-                </button>
-                <button style={S.btn('g')} onClick={() => { setShowEdit(false); setError(null); }}>
-                  Cancelar
-                </button>
+                <button style={S.btn('s')} onClick={handleUpdate} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+                <button style={S.btn('g')} onClick={() => { setShowEdit(false); setError(null); }}>Cancelar</button>
               </div>
             </div>
           </div>
@@ -517,107 +445,43 @@ export default function Tenants() {
       {showAdd && (
         <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowAdd(false); setError(null); } }}>
           <div style={S.mbox}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>👤 Cadastrar Locatário</div>
-            <div style={{ color: '#64748b', fontSize: 13, marginBottom: 18 }}>Preencha os dados do locatário</div>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4, color: '#111827' }}>Cadastrar Locatário</div>
+            <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 18 }}>Preencha os dados do locatário</div>
 
             <Sec t="— Dados Pessoais" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Nome *</label>
-                <input style={S.inp} placeholder="João da Silva" value={nt.name} onChange={e => ntf('name', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>CPF *</label>
-                <input style={S.inp} placeholder="000.000.000-00" value={nt.cpf} onChange={e => ntf('cpf', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>RG</label>
-                <input style={S.inp} placeholder="00.000.000-0" value={nt.rg} onChange={e => ntf('rg', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Nascimento</label>
-                <input style={S.inp} type="date" value={nt.birth_date} onChange={e => ntf('birth_date', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Telefone *</label>
-                <input style={S.inp} placeholder="(11) 99999-9999" value={nt.phone} onChange={e => ntf('phone', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Telefone 2</label>
-                <input style={S.inp} placeholder="(11) 99999-9999" value={nt.phone2} onChange={e => ntf('phone2', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>E-mail</label>
-                <input style={S.inp} placeholder="email@exemplo.com" value={nt.email} onChange={e => ntf('email', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Telegram Username</label>
-                <input style={S.inp} placeholder="@usuario" value={nt.telegram_username} onChange={e => ntf('telegram_username', e.target.value)} />
-              </div>
+              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Nome *</label><input style={S.inp} placeholder="João da Silva" value={nt.name} onChange={e => ntf('name', e.target.value)} /></div>
+              <div><label style={S.lbl}>CPF *</label><input style={S.inp} placeholder="000.000.000-00" value={nt.cpf} onChange={e => ntf('cpf', e.target.value)} /></div>
+              <div><label style={S.lbl}>RG</label><input style={S.inp} placeholder="00.000.000-0" value={nt.rg} onChange={e => ntf('rg', e.target.value)} /></div>
+              <div><label style={S.lbl}>Nascimento</label><input style={S.inp} type="date" value={nt.birth_date} onChange={e => ntf('birth_date', e.target.value)} /></div>
+              <div><label style={S.lbl}>Telefone *</label><input style={S.inp} placeholder="(11) 99999-9999" value={nt.phone} onChange={e => ntf('phone', e.target.value)} /></div>
+              <div><label style={S.lbl}>Telefone 2</label><input style={S.inp} placeholder="(11) 99999-9999" value={nt.phone2} onChange={e => ntf('phone2', e.target.value)} /></div>
+              <div><label style={S.lbl}>E-mail</label><input style={S.inp} placeholder="email@exemplo.com" value={nt.email} onChange={e => ntf('email', e.target.value)} /></div>
+              <div><label style={S.lbl}>Telegram Username</label><input style={S.inp} placeholder="@usuario" value={nt.telegram_username} onChange={e => ntf('telegram_username', e.target.value)} /></div>
             </div>
 
             <Sec t="— CNH & App" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-              <div>
-                <label style={S.lbl}>CNH</label>
-                <input style={S.inp} placeholder="00000000000" value={nt.cnh} onChange={e => ntf('cnh', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Categoria</label>
-                <select style={S.inp} value={nt.cnh_category} onChange={e => ntf('cnh_category', e.target.value)}>
-                  {['A', 'B', 'AB', 'C', 'D', 'E'].map(c => <option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>App</label>
-                <select style={S.inp} value={nt.app_used} onChange={e => ntf('app_used', e.target.value)}>
-                  {['Uber', '99', 'InDriver', 'Lyft', 'Outro'].map(a => <option key={a}>{a}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>Avaliação</label>
-                <input style={S.inp} placeholder="4.87" value={nt.app_rating} onChange={e => ntf('app_rating', e.target.value)} />
-              </div>
+              <div><label style={S.lbl}>CNH</label><input style={S.inp} placeholder="00000000000" value={nt.cnh} onChange={e => ntf('cnh', e.target.value)} /></div>
+              <div><label style={S.lbl}>Categoria</label><select style={S.inp} value={nt.cnh_category} onChange={e => ntf('cnh_category', e.target.value)}>{['A','B','AB','C','D','E'].map(c => <option key={c}>{c}</option>)}</select></div>
+              <div><label style={S.lbl}>App</label><select style={S.inp} value={nt.app_used} onChange={e => ntf('app_used', e.target.value)}>{['Uber','99','InDriver','Lyft','Outro'].map(a => <option key={a}>{a}</option>)}</select></div>
+              <div><label style={S.lbl}>Avaliação</label><input style={S.inp} placeholder="4.87" value={nt.app_rating} onChange={e => ntf('app_rating', e.target.value)} /></div>
             </div>
 
             <Sec t="— Endereço" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Rua e Número</label>
-                <input style={S.inp} placeholder="Rua das Flores, 123" value={nt.address} onChange={e => ntf('address', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Bairro</label>
-                <input style={S.inp} placeholder="Vila Mariana" value={nt.bairro} onChange={e => ntf('bairro', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Cidade</label>
-                <input style={S.inp} placeholder="São Paulo" value={nt.cidade} onChange={e => ntf('cidade', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Estado</label>
-                <input style={S.inp} placeholder="SP" value={nt.estado} onChange={e => ntf('estado', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>CEP</label>
-                <input style={S.inp} placeholder="00000-000" value={nt.cep} onChange={e => ntf('cep', e.target.value)} />
-              </div>
+              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Rua e Número</label><input style={S.inp} placeholder="Rua das Flores, 123" value={nt.address} onChange={e => ntf('address', e.target.value)} /></div>
+              <div><label style={S.lbl}>Bairro</label><input style={S.inp} placeholder="Vila Mariana" value={nt.bairro} onChange={e => ntf('bairro', e.target.value)} /></div>
+              <div><label style={S.lbl}>Cidade</label><input style={S.inp} placeholder="São Paulo" value={nt.cidade} onChange={e => ntf('cidade', e.target.value)} /></div>
+              <div><label style={S.lbl}>Estado</label><input style={S.inp} placeholder="SP" value={nt.estado} onChange={e => ntf('estado', e.target.value)} /></div>
+              <div><label style={S.lbl}>CEP</label><input style={S.inp} placeholder="00000-000" value={nt.cep} onChange={e => ntf('cep', e.target.value)} /></div>
             </div>
 
             <Sec t="— Emergência" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-              <div>
-                <label style={S.lbl}>Nome</label>
-                <input style={S.inp} placeholder="Maria da Silva" value={nt.emergency_name} onChange={e => ntf('emergency_name', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Parentesco</label>
-                <input style={S.inp} placeholder="Mãe" value={nt.emergency_relation} onChange={e => ntf('emergency_relation', e.target.value)} />
-              </div>
-              <div>
-                <label style={S.lbl}>Telefone</label>
-                <input style={S.inp} placeholder="(11) 99999-9999" value={nt.emergency_phone} onChange={e => ntf('emergency_phone', e.target.value)} />
-              </div>
+              <div><label style={S.lbl}>Nome</label><input style={S.inp} placeholder="Maria da Silva" value={nt.emergency_name} onChange={e => ntf('emergency_name', e.target.value)} /></div>
+              <div><label style={S.lbl}>Parentesco</label><input style={S.inp} placeholder="Mãe" value={nt.emergency_relation} onChange={e => ntf('emergency_relation', e.target.value)} /></div>
+              <div><label style={S.lbl}>Telefone</label><input style={S.inp} placeholder="(11) 99999-9999" value={nt.emergency_phone} onChange={e => ntf('emergency_phone', e.target.value)} /></div>
             </div>
 
             <Sec t="— Contrato & Pagamento" />
@@ -626,35 +490,14 @@ export default function Tenants() {
                 <label style={S.lbl}>Veículo</label>
                 <select style={S.inp} value={nt.vehicle_id} onChange={e => ntf('vehicle_id', e.target.value)}>
                   <option value="">Selecione</option>
-                  {vehicles.map(v => (
-                    <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>
-                  ))}
+                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={S.lbl}>Aluguel/Sem R$</label>
-                <input style={S.inp} type="number" value={nt.rent_weekly} onChange={e => ntf('rent_weekly', Number(e.target.value))} />
-              </div>
-              <div>
-                <label style={S.lbl}>Caução R$</label>
-                <input style={S.inp} type="number" value={nt.deposits} onChange={e => ntf('deposits', Number(e.target.value))} />
-              </div>
-              <div>
-                <label style={S.lbl}>Pagamento</label>
-                <select style={S.inp} value={nt.payment_method} onChange={e => ntf('payment_method', e.target.value)}>
-                  {['Pix', 'Dinheiro', 'Transferência'].map(m => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>Dia</label>
-                <select style={S.inp} value={nt.payment_day} onChange={e => ntf('payment_day', e.target.value)}>
-                  {['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'].map(d => <option key={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>Chave Pix</label>
-                <input style={S.inp} placeholder="CPF ou e-mail" value={nt.pix_key} onChange={e => ntf('pix_key', e.target.value)} />
-              </div>
+              <div><label style={S.lbl}>Aluguel/Sem R$</label><input style={S.inp} type="number" value={nt.rent_weekly} onChange={e => ntf('rent_weekly', Number(e.target.value))} /></div>
+              <div><label style={S.lbl}>Caução R$</label><input style={S.inp} type="number" value={nt.deposits} onChange={e => ntf('deposits', Number(e.target.value))} /></div>
+              <div><label style={S.lbl}>Pagamento</label><select style={S.inp} value={nt.payment_method} onChange={e => ntf('payment_method', e.target.value)}>{['Pix','Dinheiro','Transferência'].map(m => <option key={m}>{m}</option>)}</select></div>
+              <div><label style={S.lbl}>Dia</label><select style={S.inp} value={nt.payment_day} onChange={e => ntf('payment_day', e.target.value)}>{['segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'].map(d => <option key={d}>{d}</option>)}</select></div>
+              <div><label style={S.lbl}>Chave Pix</label><input style={S.inp} placeholder="CPF ou e-mail" value={nt.pix_key} onChange={e => ntf('pix_key', e.target.value)} /></div>
             </div>
 
             <div style={{ marginBottom: 14 }}>
@@ -662,14 +505,10 @@ export default function Tenants() {
               <textarea style={{ ...S.inp, minHeight: 55, resize: 'vertical' }} value={nt.notes} onChange={e => ntf('notes', e.target.value)} />
             </div>
 
-            {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 10 }}>⚠ {error}</div>}
+            {error && <div style={{ color: '#7A3B3B', fontSize: 13, marginBottom: 10 }}>⚠ {error}</div>}
             <div style={{ display: 'flex', gap: 9 }}>
-              <button style={S.btn('s')} onClick={handleAdd} disabled={saving}>
-                {saving ? 'Salvando...' : '✅ Cadastrar'}
-              </button>
-              <button style={S.btn('g')} onClick={() => { setShowAdd(false); setError(null); }}>
-                Cancelar
-              </button>
+              <button style={S.btn('s')} onClick={handleAdd} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar'}</button>
+              <button style={S.btn('g')} onClick={() => { setShowAdd(false); setError(null); }}>Cancelar</button>
             </div>
           </div>
         </div>
