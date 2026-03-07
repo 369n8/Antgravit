@@ -33,14 +33,34 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('payment-receipts', 'payment-receipts', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY IF NOT EXISTS "payment-receipts upload auth"
-  ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'payment-receipts');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE policyname = 'payment-receipts upload auth'
+    AND tablename = 'objects'
+  ) THEN
+    EXECUTE 'CREATE POLICY "payment-receipts upload auth"
+      ON storage.objects FOR INSERT TO authenticated
+      WITH CHECK (bucket_id = ''payment-receipts'')';
+  END IF;
 
-CREATE POLICY IF NOT EXISTS "payment-receipts read public"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'payment-receipts');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE policyname = 'payment-receipts read public'
+    AND tablename = 'objects'
+  ) THEN
+    EXECUTE 'CREATE POLICY "payment-receipts read public"
+      ON storage.objects FOR SELECT
+      USING (bucket_id = ''payment-receipts'')';
+  END IF;
 
-CREATE POLICY IF NOT EXISTS "payment-receipts delete auth"
-  ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'payment-receipts');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE policyname = 'payment-receipts delete auth'
+    AND tablename = 'objects'
+  ) THEN
+    EXECUTE 'CREATE POLICY "payment-receipts delete auth"
+      ON storage.objects FOR DELETE TO authenticated
+      USING (bucket_id = ''payment-receipts'')';
+  END IF;
+END $$;
