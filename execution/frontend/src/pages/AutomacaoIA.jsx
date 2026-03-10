@@ -138,9 +138,11 @@ export default function AutomacaoIA() {
     notes: '',
     photo_url: '',
   });
-  const [checkinSaving,  setCheckinSaving]  = useState(false);
-  const [checkinError,   setCheckinError]   = useState('');
-  const [tenantVehicles, setTenantVehicles] = useState([]);
+  const [checkinSaving,    setCheckinSaving]    = useState(false);
+  const [checkinError,     setCheckinError]     = useState('');
+  const [tenantVehicles,   setTenantVehicles]   = useState([]);
+  const [checkinVideoFile, setCheckinVideoFile] = useState(null);
+  const [uploadingVideo,   setUploadingVideo]   = useState(false);
 
   // ── Load ─────────────────────────────────────────────────────────────────────
 
@@ -373,6 +375,22 @@ export default function AutomacaoIA() {
     if (!checkinForm.tenant_id) { setCheckinError('Selecione o motorista.'); setCheckinSaving(false); return; }
     if (!checkinForm.current_km) { setCheckinError('Informe o KM atual.'); setCheckinSaving(false); return; }
 
+    let videoUrl = checkinForm.photo_url.trim() || null;
+
+    // Upload de vídeo para Storage se selecionado
+    if (checkinVideoFile) {
+      setUploadingVideo(true);
+      const ext  = checkinVideoFile.name.split('.').pop();
+      const path = `weekly/${checkinForm.tenant_id}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('inspections')
+        .upload(path, checkinVideoFile, { contentType: checkinVideoFile.type, upsert: false });
+      setUploadingVideo(false);
+      if (upErr) { setCheckinError('Falha no upload: ' + upErr.message); setCheckinSaving(false); return; }
+      const { data: urlData } = supabase.storage.from('inspections').getPublicUrl(path);
+      videoUrl = urlData.publicUrl;
+    }
+
     const weekStart = getWeekStartISO();
     const { error } = await supabase.from('weekly_checks').insert({
       client_id:    user.id,
@@ -382,7 +400,7 @@ export default function AutomacaoIA() {
       current_km:   parseInt(checkinForm.current_km, 10),
       oil_level:    checkinForm.oil_level,
       notes:        checkinForm.notes.trim() || null,
-      photo_url:    checkinForm.photo_url.trim() || null,
+      photo_url:    videoUrl,
       status:       'submitted',
       submitted_at: new Date().toISOString(),
     });
@@ -392,7 +410,30 @@ export default function AutomacaoIA() {
 
     setShowCheckinModal(false);
     setCheckinForm({ tenant_id: '', vehicle_id: '', current_km: '', oil_level: 'ok', notes: '', photo_url: '' });
+    setCheckinVideoFile(null);
     load();
+  }
+
+  async function handleApproveCheck(checkId) {
+    const { error } = await supabase.from('weekly_checks')
+      .update({ status: 'approved', approved_at: new Date().toISOString() })
+      .eq('id', checkId);
+    if (error) { alert('Erro ao aprovar: ' + error.message); return; }
+    setWeeklyChecks(prev => prev.map(c => c.id === checkId ? { ...c, status: 'approved' } : c));
+  }
+
+  function openCheckinFor(tenant) {
+    const vehArr = Array.isArray(tenant.vehicles) ? tenant.vehicles : (tenant.vehicles ? [tenant.vehicles] : []);
+    setCheckinForm({
+      tenant_id:  tenant.id,
+      vehicle_id: vehArr[0]?.id ?? '',
+      current_km: '',
+      oil_level:  'ok',
+      notes:      '',
+      photo_url:  '',
+    });
+    setCheckinError('');
+    setShowCheckinModal(true);
   }
 
   // ── Render guards ─────────────────────────────────────────────────────────────
@@ -632,10 +673,11 @@ export default function AutomacaoIA() {
                 {weeklyChecks.map((c, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 12px', borderRadius: 10, background: '#F0FDF4',
-                    border: '1px solid #16A34A22',
+                    padding: '9px 12px', borderRadius: 10,
+                    background: c.status === 'approved' ? '#F0FDF4' : '#EFF6FF',
+                    border: `1px solid ${c.status === 'approved' ? '#16A34A22' : '#1D4ED822'}`,
                   }}>
-                    <CheckCircle2 size={14} color='#16A34A' style={{ flexShrink: 0 }} />
+                    <CheckCircle2 size={14} color={c.status === 'approved' ? '#16A34A' : '#1D4ED8'} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
                         {c.tenants?.name?.split(' ')[0] ?? '—'}
@@ -644,15 +686,21 @@ export default function AutomacaoIA() {
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>
                         {c.current_km ? `${Number(c.current_km).toLocaleString('pt-BR')} km` : 'km?'}
                         {c.oil_level && <span style={{ marginLeft: 8 }}>{oilBadge(c.oil_level)}</span>}
+                        {c.photo_url && <a href={c.photo_url} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontSize: 10, color: '#5B58EC', fontWeight: 700 }}>▶ vídeo</a>}
                       </div>
                     </div>
-                    <span style={{
-                      fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 999,
-                      background: c.status === 'approved' ? '#DCFCE7' : '#DBEAFE',
-                      color: c.status === 'approved' ? '#16A34A' : '#1D4ED8',
-                    }}>
-                      {c.status === 'approved' ? 'APROVADO' : 'ENVIADO'}
-                    </span>
+                    {c.status !== 'approved' ? (
+                      <button
+                        onClick={() => handleApproveCheck(c.id)}
+                        style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Aprovar
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 999, background: '#DCFCE7', color: '#16A34A' }}>
+                        APROVADO
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -680,10 +728,16 @@ export default function AutomacaoIA() {
                           {t.name?.split(' ')[0] ?? '—'}
                           {vehArr[0]?.plate && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>· {vehArr[0].plate}</span>}
                         </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>
+                          {t.rent_weekly ? `R$ ${Number(t.rent_weekly).toLocaleString('pt-BR')} /sem` : ''}
+                        </div>
                       </div>
-                      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 999, background: '#FEE2E2', color: '#DC2626' }}>
-                        PENDENTE
-                      </span>
+                      <button
+                        onClick={() => openCheckinFor(t)}
+                        style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 8, border: 'none', background: VIOLET, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        + Check-in
+                      </button>
                     </div>
                   );
                 })}
@@ -1120,19 +1174,43 @@ export default function AutomacaoIA() {
               </div>
             </div>
 
-            {/* URL de Foto/Vídeo */}
+            {/* Upload de Vídeo */}
             <div style={{ marginBottom: 16 }}>
-              <label style={S.lbl}>URL de Foto ou Vídeo (opcional)</label>
+              <label style={S.lbl}>Vídeo / Foto do Veículo</label>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: 'var(--bg)', border: `2px dashed ${checkinVideoFile ? VIOLET : 'var(--border)'}`,
+                borderRadius: 10, padding: '12px 14px', cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                <span style={{ fontSize: 20 }}>{checkinVideoFile ? '🎥' : '📹'}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: checkinVideoFile ? VIOLET : 'var(--muted)' }}>
+                    {checkinVideoFile ? checkinVideoFile.name : 'Selecionar vídeo ou foto...'}
+                  </div>
+                  {!checkinVideoFile && <div style={{ fontSize: 10, color: 'var(--muted)' }}>MP4, MOV, JPG, PNG — máx 50MB</div>}
+                </div>
+                {checkinVideoFile && (
+                  <button
+                    onClick={e => { e.preventDefault(); setCheckinVideoFile(null); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                <input type='file' accept='video/*,image/*' style={{ display: 'none' }}
+                  onChange={e => { setCheckinVideoFile(e.target.files?.[0] || null); setCheckinForm(p => ({ ...p, photo_url: '' })); }} />
+              </label>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                Ou cole um link (WhatsApp, Drive):
+              </div>
               <input
-                style={S.inp}
+                style={{ ...S.inp, marginTop: 6, fontSize: 12 }}
                 type='url'
                 placeholder='https://...'
                 value={checkinForm.photo_url}
-                onChange={e => setCheckinForm(p => ({ ...p, photo_url: e.target.value }))}
+                onChange={e => { setCheckinForm(p => ({ ...p, photo_url: e.target.value })); setCheckinVideoFile(null); }}
+                disabled={!!checkinVideoFile}
               />
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Cole o link de um vídeo ou foto do veículo (Google Drive, WhatsApp, etc.)
-              </div>
             </div>
 
             {/* Observações */}
@@ -1165,7 +1243,9 @@ export default function AutomacaoIA() {
                 onClick={handleSaveCheckin}
                 disabled={checkinSaving}
               >
-                {checkinSaving ? (
+                {uploadingVideo ? (
+                  <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderTopColor: '#fff' }} /> Enviando vídeo...</>
+                ) : checkinSaving ? (
                   <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderTopColor: '#fff' }} /> Salvando...</>
                 ) : (
                   <><CheckCircle2 size={14} /> Registrar Check-in</>
