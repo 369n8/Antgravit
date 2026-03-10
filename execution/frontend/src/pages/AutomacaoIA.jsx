@@ -321,23 +321,39 @@ export default function AutomacaoIA() {
     setRegisteringWebhook(true);
     setWebhookResult(null);
     try {
-      // Supabase project ref extraído da URL
+      // Busca o username do bot via getMe
+      const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const meData = await meRes.json();
+      if (!meData.ok) {
+        setWebhookResult({ ok: false, error: 'Token inválido: ' + (meData.description || 'verifique o token') });
+        return;
+      }
+      const botUsername = meData.result.username; // ex: "MeuBotFrota_bot"
+
+      // Registra o webhook
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
       const ref = supabaseUrl.replace('https://', '').split('.')[0];
       const webhookUrl = `https://${ref}.supabase.co/functions/v1/ai-manager-bot`;
-      const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      const whRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: webhookUrl }),
       });
-      const data = await res.json();
-      if (data.ok) {
-        // Salva o token no banco após registrar com sucesso
-        await handleSaveChat();
-        setWebhookResult({ ok: true, url: webhookUrl });
-      } else {
-        setWebhookResult({ ok: false, error: data.description || 'Erro ao registrar webhook' });
+      const whData = await whRes.json();
+      if (!whData.ok) {
+        setWebhookResult({ ok: false, error: whData.description || 'Erro ao registrar webhook' });
+        return;
       }
+
+      // Salva token + username no banco
+      const { data: { user: u } } = await supabase.auth.getUser();
+      await supabase.from('clients').update({
+        telegram_bot_token:    token,
+        telegram_bot_username: botUsername,
+        telegram_chat_id:      chatIdInput.trim() || null,
+      }).eq('id', u.id);
+      setClient(prev => ({ ...prev, telegram_bot_token: token, telegram_bot_username: botUsername, telegram_chat_id: chatIdInput.trim() || null }));
+      setWebhookResult({ ok: true, botUsername, webhookUrl });
     } catch (err) {
       setWebhookResult({ ok: false, error: err.message });
     } finally {
@@ -846,7 +862,7 @@ export default function AutomacaoIA() {
             {webhookResult && (
               <div style={{ padding: '10px 14px', borderRadius: 10, background: webhookResult.ok ? '#F0FDF4' : '#FEF2F2', color: webhookResult.ok ? '#166534' : '#991B1B', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 {webhookResult.ok
-                  ? <><CheckCircle2 size={14} /> Bot ativado! Acesse o Telegram e envie /resumo.</>
+                  ? <><CheckCircle2 size={14} /> Bot @{webhookResult.botUsername} ativado! Envie /resumo no Telegram.</>
                   : <><AlertCircle size={14} /> {webhookResult.error}</>}
               </div>
             )}

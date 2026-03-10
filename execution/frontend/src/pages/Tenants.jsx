@@ -50,7 +50,7 @@ const BLANK = {
   notes: '',
 };
 
-const BOT_USERNAME = 'Myfrot_bot';
+// BOT_USERNAME é carregado dinamicamente do clients.telegram_bot_username
 
 // ── Subcomponente de Seção do Formulário ──
 const Sec = ({ t }) => <div style={G.sec}>{t}</div>;
@@ -71,6 +71,7 @@ export default function Tenants() {
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState('');
   const [userId, setUserId] = useState(null);
+  const [botUsername, setBotUsername] = useState(null);
 
   // Aprovação de pré-cadastro
   const [showApproval, setShowApproval] = useState(false);
@@ -83,7 +84,12 @@ export default function Tenants() {
   const etf = (k, v) => setEt(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id); });
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      supabase.from('clients').select('telegram_bot_username').eq('id', user.id).maybeSingle()
+        .then(({ data }) => { if (data?.telegram_bot_username) setBotUsername(data.telegram_bot_username); });
+    });
     load();
   }, []);
 
@@ -100,10 +106,14 @@ export default function Tenants() {
   };
 
   // ── Links ──
-  const activationLink = (tenantId) => `https://t.me/${BOT_USERNAME}?start=${tenantId}`;
+  const activationLink = (tenantId) => botUsername
+    ? `https://t.me/${botUsername}?start=${tenantId}`
+    : null;
 
   const copyTelegramLink = (tenantId) => {
-    navigator.clipboard.writeText(activationLink(tenantId));
+    const link = activationLink(tenantId);
+    if (!link) { alert('Configure seu bot Telegram em Motor IA → Gerente IA no Telegram antes de gerar links.'); return; }
+    navigator.clipboard.writeText(link);
     setCopiedId(`tg-${tenantId}`);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -464,8 +474,8 @@ export default function Tenants() {
                   {copiedId === `portal-${t.id}` ? <CheckCircle2 size={14} color="#10B981" /> : <Globe size={14} />}
                   PORTAL
                 </button>
-                {!t.telegram_chat_id && t.telegram_username && (
-                  <button title="Copiar link Telegram" style={{ ...G.btn(false), height: 38, fontSize: 11, padding: '0 10px' }} onClick={() => copyTelegramLink(t.id)}>
+                {!t.telegram_chat_id && botUsername && (
+                  <button title="Copiar link de vinculação Telegram" style={{ ...G.btn(false), height: 38, fontSize: 11, padding: '0 10px' }} onClick={() => copyTelegramLink(t.id)}>
                     {copiedId === `tg-${t.id}` ? <CheckCircle2 size={14} color="#10B981" /> : <Link size={14} />}
                   </button>
                 )}
@@ -524,10 +534,15 @@ export default function Tenants() {
                 <button style={{ ...G.btn(true), height: 52, background: '#10B981', justifyContent: 'center' }} onClick={() => generateContractPDF(p, p.vehicles)}>
                   <FileText size={18} /> GERAR CONTRATO PDF
                 </button>
-                {!p.telegram_chat_id && p.telegram_username && (
+                {!p.telegram_chat_id && botUsername && (
                   <button style={{ ...G.btn(false), height: 44, justifyContent: 'center', borderColor: '#5B58EC', color: '#5B58EC' }} onClick={() => copyTelegramLink(p.id)}>
-                    <MessageCircle size={16} /> {copiedId === `tg-${p.id}` ? 'LINK COPIADO!' : 'LINK TELEGRAM'}
+                    <MessageCircle size={16} /> {copiedId === `tg-${p.id}` ? 'LINK COPIADO!' : 'VINCULAR TELEGRAM'}
                   </button>
+                )}
+                {!p.telegram_chat_id && !botUsername && (
+                  <div style={{ height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#94A3B8', border: '1px dashed #E2E8F0', borderRadius: 10, padding: '0 12px' }}>
+                    Configure seu bot em Motor IA
+                  </div>
                 )}
                 <button style={{ ...G.btn(false), height: 44, justifyContent: 'center', borderColor: '#EF4444', color: '#EF4444' }} onClick={() => handleDelete(p.id, p.name)} disabled={actionLoading === p.id}>
                   <Trash2 size={16} /> {actionLoading === p.id ? 'EXCLUINDO...' : 'EXCLUIR LOCATÁRIO'}
