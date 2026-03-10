@@ -78,9 +78,10 @@ function currentMonthRange(): { start: string; end: string } {
 
 // ── Telegram helper ───────────────────────────────────────────────────────────
 
-async function tgSend(chatId: string, text: string): Promise<void> {
-  if (!BOT_TOKEN || !chatId) return;
-  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function tgSend(chatId: string, text: string, token?: string): Promise<void> {
+  const tk = token || BOT_TOKEN;
+  if (!tk || !chatId) return;
+  const res = await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
@@ -378,6 +379,7 @@ async function sendDailyBriefing(client: {
   id: string;
   name: string | null;
   telegram_chat_id: string | null;
+  telegram_bot_token?: string | null;
 }): Promise<void> {
   if (!client.telegram_chat_id) return;
 
@@ -403,7 +405,7 @@ async function sendDailyBriefing(client: {
     message = buildFallbackBriefing(compactState, nome, weekdayCap, dateStr);
   }
 
-  await tgSend(client.telegram_chat_id, message);
+  await tgSend(client.telegram_chat_id, message, client.telegram_bot_token ?? undefined);
   console.log(`[daily-ai-report] sent to ${nome} (${client.telegram_chat_id}) llm=${!!llmText}`);
 }
 
@@ -423,7 +425,7 @@ serve(async (req) => {
     // Busca clientes com Telegram configurado
     let query = sb
       .from("clients")
-      .select("id, name, telegram_chat_id")
+      .select("id, name, telegram_chat_id, telegram_bot_token")
       .not("telegram_chat_id", "is", null);
 
     if (manualClientId) {

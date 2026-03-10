@@ -181,8 +181,10 @@ async function sendPixToTenant(
   dueDate: string,
   qrcodeImageUrl: string,
   pixCopyPaste: string,
+  token?: string,
 ): Promise<void> {
-  if (!BOT_TOKEN || !chatId) return;
+  const tk = token || BOT_TOKEN;
+  if (!tk || !chatId) return;
 
   const amountStr = amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
   const [y, m, d] = dueDate.slice(0, 10).split("-");
@@ -198,7 +200,7 @@ async function sendPixToTenant(
     `<b>Código PIX (Copia e Cola):</b>`;
 
   // Envia imagem do QR Code com legenda
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+  await fetch(`https://api.telegram.org/bot${tk}/sendPhoto`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -210,7 +212,7 @@ async function sendPixToTenant(
   });
 
   // Envia o código PIX em mensagem separada (fácil de copiar)
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -227,10 +229,12 @@ async function notifyOwner(
   tenantName: string,
   amount: number,
   weekLabel: string,
+  token?: string,
 ): Promise<void> {
-  if (!BOT_TOKEN || !ownerChatId) return;
+  const tk = token || BOT_TOKEN;
+  if (!tk || !ownerChatId) return;
   const amountStr = amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -267,7 +271,7 @@ serve(async (req) => {
       id, value_amount, due_date, week_label, paid_status, pix_charge_id,
       tenant_id,
       tenants (id, name, cpf, telegram_chat_id),
-      clients!inner (id, telegram_chat_id)
+      clients!inner (id, telegram_chat_id, telegram_bot_token)
     `)
     .eq("id", body.payment_id)
     .eq("client_id", user.id)
@@ -296,6 +300,7 @@ serve(async (req) => {
       payment.due_date,
       payment.pix_qr_code,
       payment.pix_copy_paste,
+      client?.telegram_bot_token ?? undefined,
     );
     return json({ ok: true, reused: true, message: "QR Code reenviado para o locatário" });
   }
@@ -338,6 +343,7 @@ serve(async (req) => {
       payment.due_date,
       qrcode_image,
       pix_copy_paste,
+      client?.telegram_bot_token ?? undefined,
     );
 
     // Notifica dono
@@ -347,6 +353,7 @@ serve(async (req) => {
         tenant.name,
         Number(payment.value_amount),
         payment.week_label ?? "Aluguel semanal",
+        client?.telegram_bot_token ?? undefined,
       );
     }
 

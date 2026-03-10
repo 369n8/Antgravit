@@ -110,10 +110,13 @@ export default function AutomacaoIA() {
   const [scanResult,   setScanResult]   = useState(null);
 
   // ── Telegram state ──
-  const [sending,       setSending]       = useState(false);
-  const [sendResult,    setSendResult]    = useState(null);
-  const [chatIdInput,   setChatIdInput]   = useState('');
-  const [savingChat,    setSavingChat]    = useState(false);
+  const [sending,            setSending]            = useState(false);
+  const [sendResult,         setSendResult]         = useState(null);
+  const [chatIdInput,        setChatIdInput]        = useState('');
+  const [botTokenInput,      setBotTokenInput]      = useState('');
+  const [savingChat,         setSavingChat]         = useState(false);
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
+  const [webhookResult,      setWebhookResult]      = useState(null);
 
   // ── AI log ──
   const [aiLogs, setAiLogs] = useState([]);
@@ -164,7 +167,7 @@ export default function AutomacaoIA() {
       overdueRes,
       paidThisWeekRes,
     ] = await Promise.all([
-      supabase.from('clients').select('id, company_name, telegram_username, telegram_chat_id').eq('id', u.id).single(),
+      supabase.from('clients').select('id, company_name, telegram_username, telegram_chat_id, telegram_bot_token').eq('id', u.id).single(),
       supabase.from('fleet_settings').select('*').eq('client_id', u.id).maybeSingle(),
       supabase.from('fines')
         .select('id, amount, description, date, status, created_at, admin_fee, spread_profit, vehicles(plate, brand, model)')
@@ -196,6 +199,7 @@ export default function AutomacaoIA() {
     if (clientRes.data) {
       setClient(clientRes.data);
       setChatIdInput(clientRes.data.telegram_chat_id ?? '');
+      setBotTokenInput(clientRes.data.telegram_bot_token ?? '');
     }
     if (settRes.data) {
       setSettings(settRes.data);
@@ -299,12 +303,44 @@ export default function AutomacaoIA() {
   async function handleSaveChat() {
     setSavingChat(true);
     const { data: { user: u } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('clients')
-      .update({ telegram_chat_id: chatIdInput.trim() || null })
-      .eq('id', u.id);
+    const updates = {
+      telegram_chat_id:  chatIdInput.trim() || null,
+      telegram_bot_token: botTokenInput.trim() || null,
+    };
+    const { error } = await supabase.from('clients').update(updates).eq('id', u.id);
     setSavingChat(false);
     if (error) { alert('Erro: ' + error.message); return; }
-    setClient(prev => ({ ...prev, telegram_chat_id: chatIdInput.trim() || null }));
+    setClient(prev => ({ ...prev, ...updates }));
+  }
+
+  async function handleRegisterWebhook() {
+    const token = botTokenInput.trim();
+    if (!token) { alert('Cole o Token do bot primeiro.'); return; }
+    setRegisteringWebhook(true);
+    setWebhookResult(null);
+    try {
+      // Supabase project ref extraído da URL
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const ref = supabaseUrl.replace('https://', '').split('.')[0];
+      const webhookUrl = `https://${ref}.supabase.co/functions/v1/ai-manager-bot`;
+      const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webhookUrl }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        // Salva o token no banco após registrar com sucesso
+        await handleSaveChat();
+        setWebhookResult({ ok: true, url: webhookUrl });
+      } else {
+        setWebhookResult({ ok: false, error: data.description || 'Erro ao registrar webhook' });
+      }
+    } catch (err) {
+      setWebhookResult({ ok: false, error: err.message });
+    } finally {
+      setRegisteringWebhook(false);
+    }
   }
 
   async function handleScanNow() {
@@ -363,7 +399,7 @@ export default function AutomacaoIA() {
 
   if (loading) return <div className="loading"><div className="spinner" /> Carregando...</div>;
 
-  const botConnected      = !!client?.telegram_chat_id;
+  const botConnected      = !!client?.telegram_chat_id && !!client?.telegram_bot_token;
   const selectedProvider  = PROVIDERS.find(p => p.id === form.api_provider);
   const todayDow          = new Date().getDay();
   const weekStartFmt      = ptDate(getWeekStartISO());
@@ -685,83 +721,99 @@ export default function AutomacaoIA() {
         {/* ── Coluna Esquerda ─────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Conexão Telegram — APENAS PARA O DONO DA FROTA */}
+          {/* Conexão Telegram — Bot Pessoal do Dono */}
           <div style={S.card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: botConnected ? '#DCFCE7' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <MessageCircle size={18} color={botConnected ? '#16A34A' : '#9CA3AF'} />
               </div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Gerente no Telegram</div>
-                {/* NOTA: Telegram é APENAS para o dono, NÃO para motoristas */}
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Seu Gerente IA no Telegram</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
-                  {botConnected ? `Chat ID: ${client?.telegram_chat_id}` : 'Bot não configurado — apenas para o dono da frota'}
+                  {botConnected ? `✓ Bot configurado · Chat ID ${client?.telegram_chat_id}` : 'Configure seu bot pessoal abaixo'}
                 </div>
               </div>
               {botConnected && (
                 <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 800, color: '#16A34A', background: '#DCFCE7', padding: '3px 10px', borderRadius: 20 }}>
-                  CONECTADO
+                  ATIVO
                 </span>
               )}
             </div>
 
-            {!botConnected && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '14px 16px', marginBottom: 16, fontSize: 12, color: '#92400E', lineHeight: 1.6 }}>
-                <strong>Como conectar:</strong><br />
-                1. Inicie o bot: <code style={{ background: '#FEF3C7', padding: '1px 5px', borderRadius: 4 }}>@myfrot_bot</code> no Telegram<br />
-                2. Envie <code style={{ background: '#FEF3C7', padding: '1px 5px', borderRadius: 4 }}>/start</code> e copie seu Chat ID<br />
-                3. Cole abaixo e salve<br />
-                <em style={{ color: '#78350F' }}>Este bot é exclusivo para o gestor da frota.</em>
-              </div>
-            )}
+            {/* Instruções de setup */}
+            <div style={{ background: '#F0F4FF', border: '1px solid #C7D2FE', borderRadius: 12, padding: '14px 16px', marginBottom: 16, fontSize: 12, color: '#3730A3', lineHeight: 1.8 }}>
+              <strong>Cada cliente tem seu próprio bot exclusivo:</strong><br />
+              1. Abra <code style={{ background: '#E0E7FF', padding: '1px 5px', borderRadius: 4 }}>@BotFather</code> no Telegram → <code style={{ background: '#E0E7FF', padding: '1px 5px', borderRadius: 4 }}>/newbot</code><br />
+              2. Escolha um nome e username para o seu bot<br />
+              3. Copie o <strong>Token</strong> que o BotFather enviar<br />
+              4. Cole o token abaixo e clique em <strong>Ativar Bot</strong>
+            </div>
 
+            {/* Token do bot */}
             <div style={{ marginBottom: 12 }}>
-              <label style={S.lbl}>Seu Telegram Chat ID (apenas o dono da frota)</label>
+              <label style={S.lbl}>Token do seu bot (do @BotFather)</label>
+              <input
+                style={{ ...S.inp, fontFamily: 'monospace', fontSize: 12 }}
+                placeholder="Ex: 7123456789:AAFabc123..."
+                value={botTokenInput}
+                onChange={e => setBotTokenInput(e.target.value)}
+              />
+            </div>
+
+            {/* Chat ID */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={S.lbl}>Seu Telegram Chat ID</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   style={{ ...S.inp, flex: 1, border: chatIdInput.startsWith('@') ? '1px solid #EF4444' : S.inp.border }}
-                  placeholder="Ex: 123456789"
+                  placeholder="Ex: 123456789 (envie /start para @userinfobot)"
                   value={chatIdInput}
                   onChange={e => setChatIdInput(e.target.value)}
                 />
-                <button
-                  style={{ ...S.btn(VIOLET), padding: '0 18px', flexShrink: 0, fontSize: 13, background: VIOLET, color: '#fff' }}
-                  onClick={handleSaveChat}
-                  disabled={savingChat}
-                >
-                  {savingChat ? '...' : 'Salvar'}
-                </button>
               </div>
               {chatIdInput.startsWith('@') && (
-                <div style={{ fontSize: 11, color: '#EF4444', marginTop: 5, fontWeight: 700 }}>
-                  O Chat ID deve ser um NÚMERO. Use @userinfobot no Telegram para descobrir o seu.
+                <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4, fontWeight: 700 }}>
+                  O Chat ID deve ser um número. Envie qualquer mensagem para @userinfobot.
                 </div>
               )}
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5 }}>
-                Envie algo para <strong>@userinfobot</strong> no Telegram para ver seu ID numérico.
-              </div>
             </div>
 
-            {botConnected && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button
-                  style={{ ...S.btn(), flex: 1, justifyContent: 'center', fontSize: 13 }}
-                  onClick={handleSendBriefing}
-                  disabled={sending}
-                >
-                  {sending ? (
-                    <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Enviando...</>
-                  ) : (
-                    <><Send size={14} /> Enviar Briefing Agora</>
-                  )}
-                </button>
+            {/* Botão principal */}
+            <button
+              style={{ ...S.btn(VIOLET), width: '100%', justifyContent: 'center', marginBottom: 8, background: VIOLET, color: '#fff' }}
+              onClick={handleRegisterWebhook}
+              disabled={registeringWebhook || !botTokenInput.trim()}
+            >
+              {registeringWebhook
+                ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Ativando...</>
+                : <><Zap size={14} /> Ativar Bot</>}
+            </button>
+
+            {webhookResult && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: webhookResult.ok ? '#F0FDF4' : '#FEF2F2', color: webhookResult.ok ? '#166534' : '#991B1B', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                {webhookResult.ok
+                  ? <><CheckCircle2 size={14} /> Bot ativado! Acesse o Telegram e envie /resumo.</>
+                  : <><AlertCircle size={14} /> {webhookResult.error}</>}
               </div>
             )}
 
+            {/* Ações rápidas quando conectado */}
+            {botConnected && (
+              <button
+                style={{ ...S.btn(), width: '100%', justifyContent: 'center', fontSize: 13 }}
+                onClick={handleSendBriefing}
+                disabled={sending}
+              >
+                {sending
+                  ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Enviando...</>
+                  : <><Send size={14} /> Enviar Briefing Agora</>}
+              </button>
+            )}
+
             {sendResult && (
-              <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: sendResult.ok ? '#F0FDF4' : '#FEF2F2', color: sendResult.ok ? '#166534' : '#991B1B', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 10, background: sendResult.ok ? '#F0FDF4' : '#FEF2F2', color: sendResult.ok ? '#166534' : '#991B1B', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {sendResult.ok
-                  ? <><CheckCircle2 size={14} /> Briefing enviado para o seu Telegram!</>
+                  ? <><CheckCircle2 size={14} /> Briefing enviado!</>
                   : <><AlertCircle size={14} /> {sendResult.error}</>}
               </div>
             )}

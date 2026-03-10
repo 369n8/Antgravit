@@ -31,9 +31,10 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const R$ = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
 // ── Notifica dono no Telegram ─────────────────────────────────────────────────
-async function notifyOwner(chatId: string, msg: string): Promise<void> {
-  if (!BOT_TOKEN || !chatId) return;
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function notifyOwner(chatId: string, msg: string, token?: string): Promise<void> {
+  const tk = token || BOT_TOKEN;
+  if (!tk || !chatId) return;
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: "HTML" }),
@@ -41,10 +42,11 @@ async function notifyOwner(chatId: string, msg: string): Promise<void> {
 }
 
 // ── Notifica locatário que pagamento foi confirmado ───────────────────────────
-async function notifyTenant(chatId: string, tenantName: string, amount: number, weekLabel: string): Promise<void> {
-  if (!BOT_TOKEN || !chatId) return;
+async function notifyTenant(chatId: string, tenantName: string, amount: number, weekLabel: string, token?: string): Promise<void> {
+  const tk = token || BOT_TOKEN;
+  if (!tk || !chatId) return;
   const firstName = tenantName.split(" ")[0];
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -101,7 +103,7 @@ serve(async (req) => {
       .select(`
         id, value_amount, week_label, paid_status, tenant_id, client_id,
         tenants (id, name, telegram_chat_id),
-        clients!inner (id, telegram_chat_id, name)
+        clients!inner (id, telegram_chat_id, name, telegram_bot_token)
       `)
       .eq("pix_txid", txid)
       .maybeSingle();
@@ -151,7 +153,8 @@ serve(async (req) => {
         `👤 <b>${tenantName}</b> pagou R$ ${valorStr}\n` +
         `📋 ${weekLabel}\n` +
         `🕐 ${paidHorario}\n\n` +
-        `Caixa atualizado automaticamente. ✅`
+        `Caixa atualizado automaticamente. ✅`,
+        client.telegram_bot_token ?? undefined,
       );
     }
 
@@ -162,6 +165,7 @@ serve(async (req) => {
         tenant.name,
         Number(payment.value_amount),
         payment.week_label ?? "Aluguel semanal",
+        client?.telegram_bot_token ?? undefined,
       );
     }
   }

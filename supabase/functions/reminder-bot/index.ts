@@ -45,9 +45,10 @@ function fmtShort(d: string) {
   return `${day}/${m}`;
 }
 
-async function tgSend(chatId: string, text: string) {
-  if (!BOT_TOKEN || !chatId) return;
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function tgSend(chatId: string, text: string, token?: string) {
+  const tk = token || BOT_TOKEN;
+  if (!tk || !chatId) return;
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
@@ -70,7 +71,7 @@ serve(async (req) => {
     .select(`
       id, value_amount, week_label, pix_copy_paste, tenant_id, client_id,
       tenants (id, name, telegram_chat_id),
-      clients!inner (id, telegram_chat_id)
+      clients!inner (id, telegram_chat_id, telegram_bot_token)
     `)
     .eq("paid_status", false)
     .eq("week_start", weekStart);
@@ -88,7 +89,7 @@ serve(async (req) => {
   console.log(`[reminder-bot] ${pendingPayments.length} pagamentos pendentes`);
 
   // Agrupa por client para resumo do dono
-  const clientSummary: Record<string, { chat_id: string; pending: string[]; total: number }> = {};
+  const clientSummary: Record<string, { chat_id: string; bot_token: string; pending: string[]; total: number }> = {};
   let notified = 0;
 
   for (const pay of pendingPayments) {
@@ -97,9 +98,10 @@ serve(async (req) => {
 
     if (!clientSummary[pay.client_id]) {
       clientSummary[pay.client_id] = {
-        chat_id: client?.telegram_chat_id ?? "",
-        pending: [],
-        total:   0,
+        chat_id:   client?.telegram_chat_id ?? "",
+        bot_token: client?.telegram_bot_token ?? "",
+        pending:   [],
+        total:     0,
       };
     }
     clientSummary[pay.client_id].pending.push(tenant?.name ?? "Locatário");
@@ -122,7 +124,7 @@ serve(async (req) => {
         msg += `Acesse seu portal para pagar via PIX.`;
       }
 
-      await tgSend(tenant.telegram_chat_id, msg);
+      await tgSend(tenant.telegram_chat_id, msg, clientSummary[pay.client_id]?.bot_token || undefined);
       notified++;
       console.log(`[reminder-bot] Lembrete enviado para ${tenant.name}`);
     }
@@ -146,7 +148,7 @@ serve(async (req) => {
       `${list}${extra}\n\n` +
       `💰 Total em aberto: R$ ${valorStr}`;
 
-    await tgSend(summary.chat_id, msg);
+    await tgSend(summary.chat_id, msg, summary.bot_token || undefined);
   }
 
   const result = { ok: true, weekLabel, notified, pending: pendingPayments.length };

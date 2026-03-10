@@ -141,9 +141,10 @@ async function createPixCharge(
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
 
-async function tgSend(chatId: string, text: string) {
-  if (!BOT_TOKEN || !chatId) return;
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function tgSend(chatId: string, text: string, token?: string) {
+  const tk = token || BOT_TOKEN;
+  if (!tk || !chatId) return;
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
@@ -201,15 +202,15 @@ serve(async (req) => {
   }
 
   // Resultados por client (dono)
-  const clientSummary: Record<string, { ok: number; skip: number; fail: number; chat_id: string }> = {};
+  const clientSummary: Record<string, { ok: number; skip: number; fail: number; chat_id: string; bot_token: string }> = {};
   let globalOk = 0, globalSkip = 0, globalFail = 0;
 
   for (const tenant of tenants) {
     const clientId = tenant.client_id;
     if (!clientSummary[clientId]) {
       // Busca telegram do dono
-      const { data: cl } = await sb.from("clients").select("telegram_chat_id").eq("id", clientId).maybeSingle();
-      clientSummary[clientId] = { ok: 0, skip: 0, fail: 0, chat_id: cl?.telegram_chat_id ?? "" };
+      const { data: cl } = await sb.from("clients").select("telegram_chat_id, telegram_bot_token").eq("id", clientId).maybeSingle();
+      clientSummary[clientId] = { ok: 0, skip: 0, fail: 0, chat_id: cl?.telegram_chat_id ?? "", bot_token: cl?.telegram_bot_token ?? "" };
     }
 
     // Verifica se já existe pagamento para esta semana
@@ -317,7 +318,7 @@ serve(async (req) => {
         `Os locatários veem o QR Code no portal (link fixo). Você receberá confirmação a cada pagamento. ✅`,
       ].filter(l => l !== null).join("\n");
 
-      await tgSend(summary.chat_id, lines);
+      await tgSend(summary.chat_id, lines, summary.bot_token || undefined);
     }
   }
 

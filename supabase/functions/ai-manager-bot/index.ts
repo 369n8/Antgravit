@@ -68,18 +68,20 @@ const SMALL_TALK_REPLY =
 
 // ── Telegram helpers ──────────────────────────────────────────────────────────
 
-async function tgSend(chatId: number | string, text: string) {
-  if (!BOT_TOKEN) return;
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function tgSend(chatId: number | string, text: string, token?: string) {
+  const tk = token || BOT_TOKEN;
+  if (!tk) return;
+  await fetch(`https://api.telegram.org/bot${tk}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
   }).catch(e => console.error("[tgSend]", e));
 }
 
-async function tgTyping(chatId: number | string) {
-  if (!BOT_TOKEN) return;
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendChatAction`, {
+async function tgTyping(chatId: number | string, token?: string) {
+  const tk = token || BOT_TOKEN;
+  if (!tk) return;
+  await fetch(`https://api.telegram.org/bot${tk}/sendChatAction`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, action: "typing" }),
@@ -184,9 +186,9 @@ const DAY_NAMES_PT: Record<number, string> = {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-async function resolveClient(chatId: number): Promise<{ id: string; name: string | null } | null> {
+async function resolveClient(chatId: number): Promise<{ id: string; name: string | null; telegram_bot_token: string | null } | null> {
   const { data, error } = await sb.from("clients")
-    .select("id, name")
+    .select("id, name, telegram_bot_token")
     .eq("telegram_chat_id", String(chatId))
     .maybeSingle();
   if (error) console.error("[auth] error resolving client:", error.message);
@@ -740,8 +742,10 @@ serve(async (req) => {
     return new Response("ok");
   }
 
+  const clientToken = client.telegram_bot_token ?? undefined;
+
   // Typing indicator enquanto processa
-  await tgTyping(chatId);
+  await tgTyping(chatId, clientToken);
 
   let reply: string;
   try {
@@ -788,6 +792,6 @@ serve(async (req) => {
     reply = "Erro interno. Tente /resumo em alguns segundos.";
   }
 
-  await tgSend(chatId, reply);
+  await tgSend(chatId, reply, clientToken);
   return new Response("ok");
 });
