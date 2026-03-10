@@ -1,36 +1,73 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import Dashboard from '../components/Dashboard';
+import DashboardV2 from '../components/DashboardV2';
 
 export default function DashboardPage({ onNavigate }) {
-  const [vehicles, setVehicles]   = useState([]);
-  const [tenants, setTenants]     = useState([]);
-  const [weekRev, setWeekRev]     = useState(0);
+  const [vehicles, setVehicles] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [allActiveTenants, setAllActiveTenants] = useState([]);
+  const [pendingInspections, setPendingInspections] = useState([]);
+  const [weekInvoices, setWeekInvoices] = useState({});
+  const [weekRev, setWeekRev] = useState(0);
   const [totalExpenses, setTotalExpenses] = useState(0);
-  const [alerts, setAlerts]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [fleetAlerts, setFleetAlerts] = useState({ insurance: [], fines: [] });
+  const [monthlyData, setMonthlyData] = useState([]);
+  const [overdueInvoices, setOverdueInvoices] = useState([]);
+
+  const loadInvoices = async () => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diff);
+    mon.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from('invoices')
+      .select('id, tenant_id, status, payment_url, amount, week_label, due_date, paid_at')
+      .gte('created_at', mon.toISOString())
+      .neq('status', 'cancelled');
+    const map = {};
+    for (const inv of (data ?? [])) map[inv.tenant_id] = inv;
+    setWeekInvoices(map);
+  };
 
   useEffect(() => {
     async function load() {
       const today = new Date().toISOString().slice(0, 10);
-      const d15   = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
+      const d15 = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+      sixMonthsAgo.setDate(1);
+      const histStart = sixMonthsAgo.toISOString().slice(0, 10);
 
-      const [vRes, tRes, pRes, iRes, fRes] = await Promise.all([
+      const [vRes, tRes, pRes, iRes, fRes, hRes, ovRes, atRes, wiRes] = await Promise.all([
         supabase.from('vehicles').select('id, status, plate, model'),
-        supabase.from('tenants').select('id, paid_status').then(r => ({
+        supabase.from('tenants').select('id, paid_status, contract_signature_url').then(r => ({
           ...r, data: (r.data ?? []).map(t => ({ ...t, paid: t.paid_status }))
         })),
         supabase.from('payments').select('id, paid_status, value_amount'),
         supabase.from('insurance')
           .select('id, expiry_date, insurer, vehicles(plate, brand, model)')
-          .lte('expiry_date', d15)
-          .gte('expiry_date', today)
-          .order('expiry_date'),
+          .lte('expiry_date', d15).gte('expiry_date', today).order('expiry_date'),
         supabase.from('fines')
-          .select('id, amount, description, due_date, vehicles(plate, brand, model)')
+          .select('id, amount, description, due_date, status, vehicles(plate, brand, model), tenants!fines_tenant_id_fkey(id, name, phone)')
           .eq('status', 'pendente'),
+        supabase.from('payments')
+          .select('paid_date, value_amount, paid_status')
+          .gte('paid_date', histStart).eq('paid_status', true).order('paid_date'),
+        supabase.from('invoices')
+          .select('id, tenant_id, amount, week_label, due_date, status, tenants(id, name, phone)')
+          .in('status', ['pending', 'overdue'])
+          .lt('due_date', today)
+          .order('due_date', { ascending: true }),
+        supabase.from('tenants')
+          .select('id, name, phone, rent_weekly, billing_day, paid_status, status, vehicles!vehicle_id(plate, model, brand)')
+          .eq('status', 'ativo'),
+        supabase.from('weekly_inspections')
+          .select('id, tenant_id, status, current_km, created_at, vehicle_id')
+          .eq('status', 'pending'),
       ]);
 
       const v = vRes.data ?? [];
@@ -38,24 +75,57 @@ export default function DashboardPage({ onNavigate }) {
       const p = pRes.data ?? [];
 
       const paidThisWeek = p.filter(x => x.paid_status).reduce((s, x) => s + (x.value_amount || 0), 0);
-      const expenses     = p.filter(x => !x.paid_status).reduce((s, x) => s + (x.value_amount || 0), 0);
+      const expenses = p.filter(x => !x.paid_status).reduce((s, x) => s + (x.value_amount || 0), 0);
+
+      const pendingSignatures = t.filter(x => !x.contract_signature_url);
+
+      const histPayments = hRes.data ?? [];
+      const months = {};
+      const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      for (let i = 0; i < 6; i++) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - (5 - i));
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        months[key] = { label: MONTH_LABELS[d.getMonth()], total: 0 };
+      }
+      for (const hp of histPayments) {
+        if (!hp.paid_date) continue;
+        const key = hp.paid_date.slice(0, 7);
+        if (months[key]) months[key].total += (hp.value_amount || 0);
+      }
 
       setVehicles(v);
       setTenants(t);
       setWeekRev(paidThisWeek);
       setTotalExpenses(expenses);
       setAlerts([]);
-      setFleetAlerts({ insurance: iRes.data ?? [], fines: fRes.data ?? [] });
+      setFleetAlerts({ insurance: iRes.data ?? [], fines: fRes.data ?? [], pendingSignatures });
+      setMonthlyData(Object.values(months));
+      setOverdueInvoices(ovRes.data ?? []);
+      setAllActiveTenants(atRes.data ?? []);
+      setPendingInspections(wiRes.data ?? []);
       setLoading(false);
     }
     load();
+    loadInvoices();
   }, []);
 
-  if (loading) return <div className="loading"><div className="spinner"/> Carregando...</div>;
+  if (loading) return <div className="loading"><div className="spinner" /> Carregando...</div>;
 
   return (
     <div className="page">
-      <Dashboard vehicles={vehicles} tenants={tenants} alerts={alerts} weekRev={weekRev} totalExpenses={totalExpenses} fleetAlerts={fleetAlerts} onNavigate={onNavigate} />
+      <DashboardV2
+        vehicles={vehicles}
+        tenants={tenants}
+        weekRev={weekRev}
+        totalExpenses={totalExpenses}
+        fleetAlerts={fleetAlerts}
+        monthlyData={monthlyData}
+        overdueInvoices={overdueInvoices}
+        allActiveTenants={allActiveTenants}
+        pendingInspections={pendingInspections}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }

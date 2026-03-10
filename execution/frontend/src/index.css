@@ -1,28 +1,126 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 :root {
-  --bg:      #F6F6F4;
+  --bg: #F9FAFB;
   --surface: #FFFFFF;
-  --border:  #E8E8E6;
-  --text:    #111827;
-  --muted:   #6B7280;
-  --subtle:  #9CA3AF;
-  --accent:  #FFC524;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --surface-alt: #ECECEC;
+  --border: #E5E7EB;
+  --text: #102A57;
+  /* Navy da Referência */
+  --muted: #64748B;
+  --primary: #5B58EC;
+  /* Violeta Lunara */
+  --primary-dark: #102A57;
+  --accent-peach: #FBC286;
+  --accent-coral: #FF8E86;
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 32px;
+  --shadow-sm: 0 4px 6px -1px rgba(16, 42, 87, 0.05);
+  --shadow-md: 0 10px 15px -3px rgba(16, 42, 87, 0.08);
+  font-family: 'Poppins', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   color: var(--text);
   background: var(--bg);
 }
 
-body { min-height: 100vh; background: var(--bg); }
+/* ── Dark Mode ── */
+[data-theme="dark"] {
+  --bg: #1A1A1E;
+  --surface: #242428;
+  --surface-alt: #2C2C30;
+  --border: #3A3A3E;
+  --text: #F0F0EC;
+  --muted: #8C8C8A;
+  --subtle: #6A6A68;
+  --accent: #FACC15;
+  --accent-green: #8FB174;
+  --accent-pink: #5C4040;
+  color-scheme: dark;
+}
 
-h1, h2, h3, h4, h5, h6 { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-button  { cursor: pointer; font-family: inherit; font-size: 14px; }
-input, select, textarea { font-family: inherit; font-size: 14px; }
-a { color: inherit; text-decoration: none; }
+[data-theme="dark"] .nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
 
-/* ── Layout ── */
+[data-theme="dark"] .nav-item.active {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .btn-logout:hover {
+  background: #3A1B1B;
+}
+
+[data-theme="dark"] .field input {
+  background: var(--surface-alt);
+}
+
+[data-theme="dark"] .field input:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(250, 204, 21, 0.08);
+}
+
+[data-theme="dark"] .login-box {
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .data-table tr:hover td {
+  background: var(--surface-alt);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #4A4A4E;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #5A5A5E;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ── Layout GERAL ── */
 .layout {
   display: flex;
   min-height: 100vh;
@@ -35,32 +133,65 @@ a { color: inherit; text-decoration: none; }
   background: var(--bg);
 }
 
-/* ── Topbar ── */
+/* ── Topbar (Cabeçalho da página limpo) ── */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 32px 40px 0;
+  padding: 40px 48px 16px;
+  /* Mais respiro */
 }
 
 .topbar-title {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 32px;
+  font-weight: 800;
   color: var(--text);
-  letter-spacing: -0.7px;
+  letter-spacing: -1.2px;
   line-height: 1;
 }
 
-.page {
-  padding: 24px 40px 60px;
+.topbar-btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
 }
 
-/* ── Sidebar ── */
+.topbar-btn:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.topbar-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.topbar-btn-connected {
+  border-color: var(--accent-green);
+  background: rgba(163, 177, 138, 0.1);
+  color: var(--accent-green);
+}
+
+.page {
+  padding: 16px 48px 60px;
+}
+
+/* ── Sidebar Moderna (Flutuante visualmente) ── */
 .sidebar {
-  width: 256px;
+  width: 280px;
   min-height: 100vh;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--bg);
+  border-right: none;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -70,56 +201,62 @@ a { color: inherit; text-decoration: none; }
 }
 
 .sidebar-brand {
-  padding: 28px 20px 20px;
+  padding: 32px 24px 24px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 8px 12px;
+  padding: 8px 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   overflow-y: auto;
 }
 
+/* Links do menu em formto PÍLULA seguindo referência */
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 999px;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-pill);
   border: none;
   background: transparent;
   color: var(--muted);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: all 0.2s ease;
   width: 100%;
   text-align: left;
-  letter-spacing: -0.1px;
 }
 
 .nav-item:hover {
-  background: var(--bg);
+  background: #F0F2F5;
   color: var(--text);
 }
 
 .nav-item.active {
-  background: var(--accent);
-  color: #111827;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
   font-weight: 700;
 }
 
+/* Opcional: bolinha amarela pra destacar */
+.nav-item.active svg {
+  color: var(--accent);
+}
+
 .sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--border);
+  padding: 24px 16px;
 }
 
 .user-email {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--subtle);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -127,51 +264,67 @@ a { color: inherit; text-decoration: none; }
 
 .btn-logout {
   width: 100%;
-  padding: 9px;
-  border-radius: 999px;
+  padding: 14px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s, border-color 0.1s;
-  font-family: inherit;
+  transition: all 0.2s ease;
 }
 
 .btn-logout:hover {
-  background: #E6C6C630;
-  color: #7A3B3B;
-  border-color: #E6C6C6;
+  background: #FEE2E2;
+  color: #EF4444;
+  border-color: #FEE2E2;
 }
 
-/* ── Loading ── */
+/* ── Loading State ── */
 .loading {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  color: var(--muted);
-  gap: 10px;
+  color: var(--subtle);
+  gap: 12px;
   background: var(--bg);
   font-size: 15px;
-  font-weight: 400;
+  font-weight: 600;
 }
 
+/* Spinner amarelo grosso baseado no 'circular progress' da imagem */
 .spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #E8E8E6;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #F3F4F6;
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.65s linear infinite;
+  animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   flex-shrink: 0;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
-/* ── Scrollbars ── */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+/* ── Scrollbars Subtis ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E5E7EB;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D1D5DB;
+}

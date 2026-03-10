@@ -34,17 +34,49 @@ serve(async (req) => {
   if (event.type === "checkout.session.completed") {
     const session    = event.data.object as Stripe.Checkout.Session;
     const payment_id = session.metadata?.payment_id;
+    const invoice_id = session.metadata?.invoice_id;
+    const source     = session.metadata?.source;
 
-    if (!payment_id) {
-      console.error("[stripe-webhook] metadata.payment_id ausente — ignorando evento");
-      return new Response("ok");
-    }
-
-    // ── 3. Verificar se pagamento já foi processado (idempotência) ───────
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")              ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+
+    // ── 3a. Fluxo Invoices (create-invoice) ──────────────────────────────
+    if (invoice_id && source === "create-invoice") {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", invoice_id)
+        .single();
+
+      if (inv?.status === "paid") {
+        console.log(`[stripe-webhook] invoice ${invoice_id} já paga — ignorando`);
+        return new Response("ok");
+      }
+
+      const { error: invErr } = await supabase
+        .from("invoices")
+        .update({ status: "paid", paid_at: now, stripe_session_id: session.id })
+        .eq("id", invoice_id);
+
+      if (invErr) {
+        console.error("[stripe-webhook] erro ao atualizar invoice:", invErr.message);
+        return new Response("DB Error", { status: 500 });
+      }
+
+      console.log(`[stripe-webhook] ✓ invoice ${invoice_id} marcada como paga`);
+      return new Response("ok");
+    }
+
+    // ── 3b. Fluxo Payments legado (create-checkout-session) ──────────────
+    if (!payment_id) {
+      console.error("[stripe-webhook] metadata sem payment_id nem invoice_id — ignorando");
+      return new Response("ok");
+    }
 
     const { data: existing } = await supabase
       .from("payments")
@@ -57,21 +89,13 @@ serve(async (req) => {
       return new Response("ok");
     }
 
-    // ── 4. Marcar como pago no banco de dados ────────────────────────────
-    const today = new Date().toISOString().slice(0, 10);
-
     const { error: updateErr } = await supabase
       .from("payments")
-      .update({
-        paid_status:    true,
-        paid_date:      today,
-        payment_method: "Stripe",
-      })
+      .update({ paid_status: true, paid_date: today, payment_method: "Stripe" })
       .eq("id", payment_id);
 
     if (updateErr) {
       console.error("[stripe-webhook] erro ao atualizar DB:", updateErr.message);
-      // Retornar 500 para Stripe retentar o webhook
       return new Response("DB Error", { status: 500 });
     }
 

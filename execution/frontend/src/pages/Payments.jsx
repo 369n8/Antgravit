@@ -1,71 +1,36 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, X, FileText, Upload, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { S, PillTabs, daysUntil, ptDate, fmt, weekRange, monthRange, exportCSV } from '../lib/shared';
+import {
+  Plus, X, FileText, Upload, Check, ChevronLeft,
+  ChevronRight, Download, Search, Banknote,
+  AlertCircle, TrendingUp, DollarSign, Clock, QrCode, Copy, CheckCircle2
+} from 'lucide-react';
+import { api } from '../services/api';
 
-const BLANK = {
-  tenant_id: '', value_amount: 400, due_date: '', payment_method: 'Pix', week_label: '',
-};
+const BLANK = { tenant_id: '', value_amount: 400, due_date: '', payment_method: 'Pix', week_label: '' };
 
-const PASTEL = {
-  '#22c55e': ['rgba(143,156,130,0.18)', '#4A5441'],
-  '#ef4444': ['#E6C6C6',               '#7A3B3B'],
-  '#f59e0b': ['#FFF0C2',               '#7A5800'],
-  '#6366f1': ['#ECEEFF',               '#3B3E9A'],
-};
-
-const S = {
-  card: { background: '#fff', borderRadius: 24, padding: 24, boxShadow: 'none', border: '1px solid #EBEBEB' },
-  bdg:  c => {
-    const [bg, text] = PASTEL[c] ?? ['#EBEBEB', '#4B5563'];
-    return { display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:999, fontSize:11, fontWeight:600, background:bg, color:text, whiteSpace:'nowrap' };
+const G = {
+  card: {
+    background: '#FFF',
+    borderRadius: 24,
+    padding: '28px',
+    border: '1px solid #F1F5F9',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
   },
-  btn:  (v = 'p') => ({
-    padding: '10px 22px', borderRadius: 999, border: 'none',
-    background: v==='p' ? '#FFC524' : v==='s' ? 'rgba(143,156,130,0.18)' : v==='d' ? '#E6C6C6' : '#F6F6F4',
-    color: v==='p' ? '#111827' : v==='s' ? '#4A5441' : v==='d' ? '#7A3B3B' : '#374151',
-    fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+  statLabel: { fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em' },
+  statValue: { fontSize: 28, fontWeight: 900, color: '#102A57', letterSpacing: '-1.5px' },
+  btn: (primary) => ({
+    padding: '12px 24px', borderRadius: '16px', border: primary ? 'none' : '1px solid #E2E8F0',
+    background: primary ? '#102A57' : '#FFF', color: primary ? '#FFF' : '#102A57',
+    fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s',
   }),
-  inp:  { background: '#F6F6F4', border: 'none', borderRadius: 12, padding: '10px 14px', color: '#111827', fontFamily: 'inherit', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' },
-  lbl:  { fontSize: 11, color: '#9CA3AF', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 6, display: 'block', fontWeight: 600 },
-  ovl:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.12)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 },
-  mbox: { background: '#fff', borderRadius: 28, padding: 32, width: '100%', maxWidth: 500, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.08)', border: '1px solid #EBEBEB' },
-  row:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #F6F6F4' },
+  badge: (color, bg) => ({
+    padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+    color, background: bg
+  })
 };
-
-function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000); }
-function ptDate(d) { if (!d) return '—'; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; }
-function fmt(v) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }); }
-
-function weekRange() {
-  const now  = new Date();
-  const day  = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon  = new Date(now); mon.setDate(now.getDate() + diff); mon.setHours(0,0,0,0);
-  const sun  = new Date(mon); sun.setDate(mon.getDate() + 6);   sun.setHours(23,59,59,999);
-  return [mon, sun];
-}
-
-function monthRange() {
-  const now   = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-  return [start, end];
-}
-
-const PillTabs = ({ tabs, active, onChange, style }) => (
-  <div style={{ background: '#F6F6F4', borderRadius: 999, padding: 4, display: 'inline-flex', gap: 2, ...style }}>
-    {tabs.map(([id, l]) => (
-      <button key={id} onClick={() => onChange(id)} style={{
-        padding: '7px 18px', borderRadius: 999, border: 'none',
-        background: active === id ? '#fff' : 'transparent',
-        color: active === id ? '#111827' : '#9CA3AF',
-        boxShadow: active === id ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
-        cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
-        transition: 'all .15s',
-      }}>{l}</button>
-    ))}
-  </div>
-);
 
 /* ── Lightbox ── */
 function Lightbox({ url, onClose }) {
@@ -76,73 +41,46 @@ function Lightbox({ url, onClose }) {
   }, [onClose]);
 
   const isImage = /\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(url);
-
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.95)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={onClose}
-    >
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,42,87,0.95)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }} onClick={onClose}>
       {isImage ? (
-        <img
-          src={url} alt="comprovante"
-          onClick={e => e.stopPropagation()}
-          style={{ maxWidth: '90vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: 12 }}
-        />
+        <img src={url} alt="comprovante" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }} />
       ) : (
-        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: 32, textAlign: 'center' }}>
-          <FileText size={40} style={{ color: '#9CA3AF', marginBottom: 12 }} />
-          <div style={{ fontSize: 14, color: '#111827', marginBottom: 16 }}>Comprovante em PDF</div>
-          <a href={url} target="_blank" rel="noreferrer"
-            style={{ ...S.btn('p'), justifyContent: 'center', textDecoration: 'none', display: 'inline-flex' }}>
-            Abrir PDF
-          </a>
+        <div onClick={e => e.stopPropagation()} style={{ background: '#FFF', borderRadius: 32, padding: 48, textAlign: 'center', maxWidth: 400 }}>
+          <FileText size={64} style={{ color: '#5B58EC', marginBottom: 20 }} />
+          <h3 style={{ fontSize: 20, fontWeight: 900, color: '#102A57', marginBottom: 24 }}>Comprovante em PDF</h3>
+          <a href={url} target="_blank" rel="noreferrer" style={{ ...G.btn(true), textDecoration: 'none', justifyContent: 'center' }}>ABRIR DOCUMENTO</a>
         </div>
       )}
-      <button onClick={onClose} style={{ position: 'absolute', top: 18, right: 18, background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <X size={16} />
-      </button>
+      <button onClick={onClose} style={{ position: 'absolute', top: 32, right: 32, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#FFF', width: 48, height: 48, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
     </div>
   );
 }
 
-/* ── Slide-over de extrato ── */
+/* ── Extrato Slide-over ── */
 function TenantExtrato({ tenant, payments, onClose, onReceiptUpdate }) {
   const tenantPayments = payments.filter(p => p.tenant_id === tenant.id);
-  const paidPayments   = tenantPayments.filter(p => p.paid_status && p.paid_date);
-
+  const paidPayments = tenantPayments.filter(p => p.paid_status && p.paid_date);
   const [wStart, wEnd] = weekRange();
   const [mStart, mEnd] = monthRange();
-
-  const weekRev = paidPayments
-    .filter(p => { const d = new Date(p.paid_date); return d >= wStart && d <= wEnd; })
-    .reduce((s, p) => s + (p.value_amount || 0), 0);
-
-  const monthRev = paidPayments
-    .filter(p => { const d = new Date(p.paid_date); return d >= mStart && d <= mEnd; })
-    .reduce((s, p) => s + (p.value_amount || 0), 0);
-
-  const totalPaid    = paidPayments.reduce((s, p) => s + (p.value_amount || 0), 0);
+  const weekRev = paidPayments.filter(p => { const d = new Date(p.paid_date); return d >= wStart && d <= wEnd; }).reduce((s, p) => s + (p.value_amount || 0), 0);
+  const monthRev = paidPayments.filter(p => { const d = new Date(p.paid_date); return d >= mStart && d <= mEnd; }).reduce((s, p) => s + (p.value_amount || 0), 0);
+  const totalPaid = paidPayments.reduce((s, p) => s + (p.value_amount || 0), 0);
   const totalPending = tenantPayments.filter(p => !p.paid_status).reduce((s, p) => s + (p.value_amount || 0), 0);
 
   const [uploadingId, setUploadingId] = useState(null);
   const [lightboxUrl, setLightboxUrl] = useState(null);
-  const [checkoutId, setCheckoutId]   = useState(null); // payment_id em processamento
+  const [checkoutId, setCheckoutId] = useState(null);
   const fileRefs = useRef({});
 
   const handleStripeCheckout = async (paymentId) => {
     setCheckoutId(paymentId);
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: { payment_id: paymentId },
-      });
-      if (error || !data?.url) throw new Error(error?.message ?? 'Sem URL de pagamento');
+      const data = await api.createCheckoutSession(paymentId);
+      if (!data?.url) throw new Error('Sem URL de pagamento');
       window.location.href = data.url;
-    } catch (err) {
-      console.error('[stripe]', err);
-      alert('Erro ao abrir pagamento: ' + err.message);
-    } finally {
-      setCheckoutId(null);
-    }
+    } catch (err) { alert('Erro ao abrir pagamento: ' + err.message); }
+    finally { setCheckoutId(null); }
   };
 
   const handleReceiptUpload = useCallback(async (paymentId, file) => {
@@ -150,259 +88,95 @@ function TenantExtrato({ tenant, payments, onClose, onReceiptUpdate }) {
     setUploadingId(paymentId);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const ext  = file.name.split('.').pop();
+      const ext = file.name.split('.').pop();
       const path = `${user.id}/${paymentId}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('payment-receipts')
-        .upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage
-        .from('payment-receipts')
-        .getPublicUrl(path);
-      const { error: dbErr } = await supabase
-        .from('payments')
-        .update({ receipt_url: publicUrl })
-        .eq('id', paymentId);
-      if (dbErr) throw dbErr;
+      await supabase.storage.from('payment-receipts').upload(path, file, { upsert: true });
+      const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(path);
+      await supabase.from('payments').update({ receipt_url: publicUrl }).eq('id', paymentId);
       onReceiptUpdate(paymentId, publicUrl);
-    } catch (err) {
-      console.error('Upload erro:', err);
-    } finally {
-      setUploadingId(null);
-    }
+    } catch (err) { console.error(err); }
+    finally { setUploadingId(null); }
   }, [onReceiptUpdate]);
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.15)', backdropFilter: 'blur(8px)', zIndex: 290 }} />
-
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: '100%', maxWidth: 480,
-        background: '#fff',
-        borderLeft: '1px solid #EBEBEB',
-        zIndex: 300,
-        display: 'flex', flexDirection: 'column',
-        animation: 'slideIn .22s cubic-bezier(.4,0,.2,1)',
-      }}>
-        {/* Cabeçalho */}
-        <div style={{ padding: '28px 28px 20px', borderBottom: '1px solid #F6F6F4', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(16,42,87,0.2)', backdropFilter: 'blur(8px)', zIndex: 300 }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 500, background: '#FFF', zIndex: 310, display: 'flex', flexDirection: 'column', boxShadow: '-10px 0 40px rgba(0,0,0,0.1)', animation: 'slideIn .3s ease' }}>
+        <div style={{ padding: '40px 32px 24px', borderBottom: '1px solid #F1F5F9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: 9, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.12em', fontWeight: 600, marginBottom: 6 }}>Extrato do Locatário</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: '#111827', letterSpacing: '-1px', lineHeight: 1.1 }}>{tenant.name}</div>
+              <div style={G.statLabel}>Extrato Consolidado</div>
+              <h2 style={{ fontSize: 28, fontWeight: 900, color: '#102A57', margin: '4px 0 0', letterSpacing: '-1px' }}>{tenant.name}</h2>
             </div>
-            <button onClick={onClose} style={{ background: '#F6F6F4', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginLeft: 16 }}>
-              <X size={16} color="#6B7280" />
-            </button>
+            <button onClick={onClose} style={{ background: '#F8FAFB', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer' }}><X size={20} color="#102A57" /></button>
           </div>
-
-          {/* Métricas */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 20 }}>
-            {[
-              { l: 'Esta semana',    v: `R$ ${fmt(weekRev)}`   },
-              { l: 'Este mês',       v: `R$ ${fmt(monthRev)}`  },
-              { l: 'Total recebido', v: `R$ ${fmt(totalPaid)}` },
-              { l: 'Pendente',       v: `R$ ${fmt(totalPending)}`, warn: totalPending > 0 },
-            ].map((m, i) => (
-              <div key={i} style={{ background: '#F6F6F4', borderRadius: 16, padding: '14px 16px' }}>
-                <div style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600, marginBottom: 6 }}>{m.l}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-1px', color: m.warn ? '#7A3B3B' : '#111827', lineHeight: 1 }}>{m.v}</div>
-              </div>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 32 }}>
+            <div style={G.card}>
+              <div style={G.statLabel}>Semana</div>
+              <div style={G.statValue}>R$ {fmt(weekRev)}</div>
+            </div>
+            <div style={{ ...G.card, border: totalPending > 0 ? '1px solid #EF4444' : '1px solid #F1F5F9' }}>
+              <div style={G.statLabel}>Em Aberto</div>
+              <div style={{ ...G.statValue, color: totalPending > 0 ? '#EF4444' : '#102A57' }}>R$ {fmt(totalPending)}</div>
+            </div>
           </div>
         </div>
 
-        {/* Lista */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 28px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', padding: '20px 0 12px' }}>
-            Histórico · {tenantPayments.length} registros
-          </div>
-
-          {tenantPayments.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9CA3AF', fontSize: 13 }}>
-              Nenhum pagamento registrado.
-            </div>
-          ) : (
-            tenantPayments.map((p, i) => {
-              const isLast = i === tenantPayments.length - 1;
-              const isLate = !p.paid_status && p.due_date && daysUntil(p.due_date) < 0;
-              const hasReceipt = !!p.receipt_url;
-              const isUploading = uploadingId === p.id;
-
+        <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
+          <h4 style={{ ...G.statLabel, marginBottom: 20 }}>Histórico de Lançamentos ({tenantPayments.length})</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {tenantPayments.map(p => {
+              const isLate = !p.paid_status && daysUntil(p.due_date) < 0;
               return (
-                <div key={p.id} style={{
-                  padding: '14px 0',
-                  borderBottom: isLast ? 'none' : '1px solid #F6F6F4',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
-                        {p.week_label || 'Cobrança'}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {p.due_date && (
-                          <span style={{ color: isLate ? '#7A3B3B' : '#9CA3AF' }}>
-                            Vence {ptDate(p.due_date)}{isLate ? ' · atrasado' : ''}
-                          </span>
-                        )}
-                        {p.paid_status && p.paid_date && (
-                          <span style={{ color: '#4A5441' }}>Pago em {ptDate(p.paid_date)}</span>
-                        )}
-                        <span>{p.payment_method}</span>
-                      </div>
+                <div key={p.id} style={{ ...G.card, padding: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#102A57' }}>{p.week_label || 'Cobrança'}</div>
+                      <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, marginTop: 4 }}>Vencimento: {ptDate(p.due_date)}</div>
                     </div>
-
-                    {/* Valor + badge */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
-                        R$ {fmt(p.value_amount)}
-                      </div>
-                      <div style={S.bdg(p.paid_status ? '#22c55e' : isLate ? '#ef4444' : '#f59e0b')}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: p.paid_status ? '#10B981' : isLate ? '#EF4444' : '#102A57' }}>R$ {fmt(p.value_amount)}</div>
+                      <span style={G.badge(p.paid_status ? '#10B981' : isLate ? '#EF4444' : '#F59E0B', p.paid_status ? '#F0FDF4' : isLate ? '#FFF1F1' : '#FFFBEB')}>
                         {p.paid_status ? 'Pago' : isLate ? 'Atrasado' : 'Pendente'}
-                      </div>
+                      </span>
                     </div>
                   </div>
-
-                  {/* Pagar Agora — apenas para pendentes */}
                   {!p.paid_status && (
-                    <div style={{ marginTop: 10 }}>
-                      <button
-                        onClick={() => handleStripeCheckout(p.id)}
-                        disabled={checkoutId === p.id}
-                        style={{
-                          width: '100%',
-                          padding: '10px 16px',
-                          borderRadius: 12,
-                          border: 'none',
-                          background: checkoutId === p.id ? '#E8E8E6' : '#FFC524',
-                          color: checkoutId === p.id ? '#9CA3AF' : '#111827',
-                          fontFamily: 'inherit',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          cursor: checkoutId === p.id ? 'not-allowed' : 'pointer',
-                          letterSpacing: '-0.2px',
-                          transition: 'background .15s',
-                        }}
-                      >
-                        {checkoutId === p.id ? 'Abrindo pagamento...' : `Pagar R$ ${fmt(p.value_amount)}`}
-                      </button>
-                    </div>
+                    <button onClick={() => handleStripeCheckout(p.id)} disabled={checkoutId === p.id} style={{ ...G.btn(true), width: '100%', marginTop: 16, background: '#5B58EC', justifyContent: 'center' }}>
+                      {checkoutId === p.id ? 'PROCESSANDO...' : 'PAGAR AGORA'}
+                    </button>
                   )}
-
-                  {/* Comprovante */}
-                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {/* Input de arquivo oculto */}
-                    <input
-                      ref={el => { if (el) fileRefs.current[p.id] = el; }}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      hidden
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) handleReceiptUpload(p.id, file);
-                        e.target.value = '';
-                      }}
-                    />
-
-                    {hasReceipt ? (
-                      /* Botão ver comprovante */
-                      <button
-                        onClick={() => setLightboxUrl(p.receipt_url)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          padding: '6px 14px', borderRadius: 999,
-                          border: '1px solid rgba(143,156,130,0.4)',
-                          background: 'rgba(143,156,130,0.10)',
-                          color: '#4A5441', fontFamily: 'inherit', fontSize: 12,
-                          fontWeight: 600, cursor: 'pointer',
-                        }}
-                      >
-                        <Check size={12} strokeWidth={2.5} />
-                        Ver comprovante
-                      </button>
-                    ) : (
-                      /* Botão anexar */
-                      <button
-                        onClick={() => fileRefs.current[p.id]?.click()}
-                        disabled={isUploading}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          padding: '6px 14px', borderRadius: 999,
-                          border: '1.5px dashed #D1D5DB',
-                          background: 'transparent',
-                          color: isUploading ? '#9CA3AF' : '#6B7280',
-                          fontFamily: 'inherit', fontSize: 12,
-                          fontWeight: 500, cursor: isUploading ? 'not-allowed' : 'pointer',
-                          transition: 'border-color .15s, color .15s',
-                        }}
-                        onMouseEnter={e => { if (!isUploading) { e.currentTarget.style.borderColor = '#111827'; e.currentTarget.style.color = '#111827'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = isUploading ? '#9CA3AF' : '#6B7280'; }}
-                      >
-                        {isUploading
-                          ? <><Upload size={12} style={{ animation: 'spin .8s linear infinite' }} /> Enviando...</>
-                          : <><Plus size={12} /> Anexar comprovante</>
-                        }
-                      </button>
-                    )}
-
-                    {/* Trocar comprovante (quando já existe) */}
-                    {hasReceipt && (
-                      <button
-                        onClick={() => fileRefs.current[p.id]?.click()}
-                        disabled={isUploading}
-                        title="Substituir comprovante"
-                        style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                      >
-                        <Upload size={13} />
-                      </button>
-                    )}
-                  </div>
                 </div>
               );
-            })
-          )}
+            })}
+          </div>
         </div>
       </div>
-
-      {/* Lightbox de comprovante */}
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
-
-      <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to   { transform: translateX(0);    opacity: 1; }
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </>
   );
 }
 
 export default function Payments() {
-  const [rows, setRows]         = useState([]);
-  const [tenants, setTenants]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [filter, setFilter]     = useState('all');
-  const [showAdd, setShowAdd]   = useState(false);
-  const [np, setNp]             = useState(BLANK);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState(null);
+  const [rows, setRows] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [showAdd, setShowAdd] = useState(false);
+  const [np, setNp] = useState(BLANK);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [sendingIds, setSendingIds] = useState(new Set());
-  const [toast, setToast]       = useState(null);
-  const [activationModal, setActivationModal] = useState(null);
-  const [extrato, setExtrato]   = useState(null);
-
-  const BOT_USERNAME   = 'Myfrot_bot';
-  const activationLink = (tenantId) => `https://t.me/${BOT_USERNAME}?start=${tenantId}`;
+  const [pixLoadingIds, setPixLoadingIds] = useState(new Set());
+  const [toast, setToast] = useState(null);
+  const [extrato, setExtrato] = useState(null);
+  const [pixModal, setPixModal] = useState(null); // { paymentId, qr_code, copy_paste, name, amount }
+  const [copied, setCopied] = useState(false);
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      supabase.from('payments')
-        .select('*, tenants(name, phone, telegram_username, telegram_chat_id)')
-        .order('due_date', { ascending: false }),
+      supabase.from('payments').select('*, tenants(name, phone)').order('due_date', { ascending: false }),
       supabase.from('tenants').select('id, name').eq('status', 'ativo'),
     ]).then(([{ data: pays }, { data: tens }]) => {
       setRows(pays ?? []);
@@ -413,47 +187,78 @@ export default function Payments() {
 
   useEffect(() => { load(); }, []);
 
-  const showToast = (msg, color = '#8F9C82') => {
+  const showToast = (msg, color = '#10B981') => {
     setToast({ msg, color });
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* Atualiza receipt_url localmente após upload no extrato */
   const handleReceiptUpdate = useCallback((paymentId, url) => {
     setRows(r => r.map(p => p.id === paymentId ? { ...p, receipt_url: url } : p));
   }, []);
 
-  const sendBilling = async (p) => {
-    if (!p.tenants?.telegram_chat_id) {
-      setActivationModal({
-        name:  p.tenants?.name ?? 'Locatário',
-        link:  activationLink(p.tenant_id),
-        phone: p.tenants?.phone ?? null,
+  const handlePixCharge = async (p) => {
+    if (pixLoadingIds.has(p.id)) return;
+    setPixLoadingIds(prev => new Set(prev).add(p.id));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-charge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ payment_id: p.id }),
       });
-      return;
-    }
-    if (sendingIds.has(p.id)) return;
-    setSendingIds(prev => new Set(prev).add(p.id));
-    const { data, error: fnErr } = await supabase.functions.invoke('telegram-billing', {
-      body: {
-        client_name:        p.tenants?.name ?? 'Locatário',
-        amount_due:         p.value_amount,
-        telegram_chat_id:   p.tenants?.telegram_chat_id,
-        telegram_username:  p.tenants?.telegram_username ?? '',
-      },
-    });
-    setSendingIds(prev => { const s = new Set(prev); s.delete(p.id); return s; });
-    if (fnErr || data?.ok === false) {
-      showToast(data?.error ?? fnErr?.message ?? 'Erro desconhecido', '#E6C6C6');
-    } else {
-      showToast('Cobrança enviada');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar PIX');
+
+      // Atualiza row localmente se retornou pix_copy_paste
+      if (data.pix_copy_paste) {
+        setRows(r => r.map(row => row.id === p.id ? {
+          ...row, pix_copy_paste: data.pix_copy_paste,
+          pix_qr_code: data.qrcode_image, pix_expires_at: data.expires_at
+        } : row));
+      }
+
+      // Abre modal com QR Code
+      const updatedRow = rows.find(r => r.id === p.id);
+      setPixModal({
+        paymentId: p.id,
+        qr_code: data.qrcode_image || updatedRow?.pix_qr_code,
+        copy_paste: data.pix_copy_paste,
+        name: p.tenants?.name,
+        amount: p.value_amount,
+        week_label: p.week_label,
+      });
+      showToast('PIX enviado para o Telegram do locatário! 📱');
+    } catch (err) {
+      showToast(err.message ?? 'Erro ao gerar PIX', '#EF4444');
+    } finally {
+      setPixLoadingIds(prev => { const s = new Set(prev); s.delete(p.id); return s; });
     }
   };
 
+  const copyPix = (code) => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const sendBilling = async (p) => {
+    if (sendingIds.has(p.id)) return;
+    setSendingIds(prev => new Set(prev).add(p.id));
+    try {
+      await api.sendBillingNotification({
+        payment_id: p.id, client_name: p.tenants?.name ?? 'Locatário',
+        amount_due: p.value_amount, week_label: p.week_label || 'Referência', due_date: p.due_date,
+      });
+      showToast('Cobranca enviada ao Telegram 📱');
+    } catch (err) { showToast(err.message ?? 'Erro ao notificar', '#EF4444'); }
+    finally { setSendingIds(prev => { const s = new Set(prev); s.delete(p.id); return s; }); }
+  };
+
   const togglePaid = async (id, current) => {
-    const update = { paid_status: !current };
-    if (!current) update.paid_date = new Date().toISOString().slice(0, 10);
-    else update.paid_date = null;
+    const update = { paid_status: !current, paid_date: !current ? new Date().toISOString().slice(0, 10) : null };
     await supabase.from('payments').update(update).eq('id', id);
     setRows(r => r.map(p => p.id === id ? { ...p, ...update } : p));
   };
@@ -472,188 +277,172 @@ export default function Payments() {
     setShowAdd(false); setNp(BLANK); load();
   };
 
-  if (loading) return <div className="loading"><div className="spinner" /> Carregando...</div>;
+  if (loading) return <div className="loading"><div className="spinner" /> Carregando caixa...</div>;
 
-  const filtered     = rows.filter(r => filter === 'all' || (filter === 'pending' ? !r.paid_status : r.paid_status));
   const totalPending = rows.filter(r => !r.paid_status).reduce((s, r) => s + (r.value_amount || 0), 0);
-  const totalPaid    = rows.filter(r =>  r.paid_status).reduce((s, r) => s + (r.value_amount || 0), 0);
-  const overdueCount = rows.filter(r => !r.paid_status && r.due_date && daysUntil(r.due_date) < 0).length;
+  const totalPaid = rows.filter(r => r.paid_status).reduce((s, r) => s + (r.value_amount || 0), 0);
+  const overdueCount = rows.filter(r => !r.paid_status && daysUntil(r.due_date) < 0).length;
+  const filtered = rows.filter(r => filter === 'all' || (filter === 'pending' ? !r.paid_status : r.paid_status));
 
   return (
-    <div className="page">
+    <div className="page" style={{ background: '#F8FAFB', minHeight: '100vh', padding: '24px 0' }}>
       {toast && (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.color, color: '#fff', padding: '10px 22px', borderRadius: 999, fontSize: 14, fontWeight: 600, zIndex: 999, boxShadow: '0 4px 20px rgba(0,0,0,.12)', pointerEvents: 'none' }}>
-          {toast.msg}
-        </div>
+        <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', background: toast.color, color: '#FFF', padding: '14px 28px', borderRadius: 20, fontWeight: 800, zIndex: 999, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>{toast.msg}</div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <button style={S.btn()} onClick={() => setShowAdd(true)}><Plus size={14} /> Nova Cobrança</button>
+      {/* ── HEADER ── */}
+      <div style={{ marginBottom: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 32, fontWeight: 900, color: '#102A57', letterSpacing: '-1.5px', margin: 0 }}>Pagamentos</h2>
+        <p style={{ color: '#64748B', fontWeight: 600, marginTop: 4, fontSize: 16 }}>Fluxo de caixa e gestão de inadimplência</p>
+
+        <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+          <button style={G.btn(true)} onClick={() => setShowAdd(true)}><Plus size={18} /> NOVA COBRANÇA</button>
+        </div>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(175px,1fr))', gap: 12, marginBottom: 24 }}>
+      {/* ── STATS GRID ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24, marginBottom: 40 }}>
         {[
-          { l: 'Pendente',  v: `R$ ${fmt(totalPending)}` },
-          { l: 'Recebido',  v: `R$ ${fmt(totalPaid)}`    },
-          { l: 'Em atraso', v: overdueCount               },
-          { l: 'Total',     v: rows.length                },
+          { l: 'Pendente', v: `R$ ${fmt(totalPending)}`, icon: Clock, color: '#F59E0B', bg: '#FFFBEB' },
+          { l: 'Recebido (Mês)', v: `R$ ${fmt(totalPaid)}`, icon: TrendingUp, color: '#10B981', bg: '#F0FDF4' },
+          { l: 'Em Atraso', v: overdueCount, icon: AlertCircle, color: '#EF4444', bg: '#FFF1F1' },
+          { l: 'Total Cobranças', v: rows.length, icon: FileText, color: '#102A57', bg: '#F8FAFB' },
         ].map((s, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 24, padding: '18px 20px', border: '1px solid #EBEBEB' }}>
-            <div style={{ fontSize: 36, fontWeight: 700, color: '#111827', letterSpacing: '-2px', lineHeight: 1, marginBottom: 6 }}>{s.v}</div>
-            <div style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600 }}>{s.l}</div>
+          <div key={i} style={G.card}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <s.icon size={20} color={s.color} />
+            </div>
+            <div style={G.statLabel}>{s.l}</div>
+            <div style={{ ...G.statValue, color: s.color }}>{s.v}</div>
           </div>
         ))}
       </div>
 
-      {/* Filtros */}
-      <div style={{ marginBottom: 16 }}>
-        <PillTabs
-          tabs={[['all','Todos'],['pending','Pendentes'],['paid','Pagos']]}
-          active={filter}
-          onChange={setFilter}
-        />
+      {/* ── FILTROS ── */}
+      <div style={{ marginBottom: 32 }}>
+        <PillTabs tabs={[['all', 'Todos'], ['pending', 'Pendentes'], ['paid', 'Pagos']]} active={filter} onChange={setFilter} />
       </div>
 
-      {/* Lista */}
-      <div style={S.card}>
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9CA3AF' }}>Nenhum pagamento encontrado.</div>
-        ) : (
-          filtered.map(p => {
-            const days   = p.due_date ? daysUntil(p.due_date) : null;
-            const isLate = !p.paid_status && days !== null && days < 0;
-            return (
-              <div key={p.id} style={S.row}>
-                {/* Área clicável — abre extrato */}
-                <div
-                  style={{ flex: 1, cursor: 'pointer', minWidth: 0 }}
-                  onClick={() => setExtrato({ id: p.tenant_id, name: p.tenants?.name ?? '—' })}
-                >
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {p.tenants?.name ?? '—'}
-                    {p.tenants?.telegram_username && (
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.tenants?.telegram_chat_id ? '#8F9C82' : '#D1D5DB', flexShrink: 0, display: 'inline-block' }} />
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
-                    {p.week_label ?? '—'}
-                    {p.due_date && (
-                      <span style={{ color: isLate ? '#7A3B3B' : days < 3 ? '#7A5800' : '#9CA3AF', marginLeft: 8 }}>
-                        · Vence {new Date(p.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                        {isLate && ` (${Math.abs(days)}d atraso)`}
-                      </span>
-                    )}
-                  </div>
+      {/* ── LISTA ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {filtered.map(p => {
+          const isLate = !p.paid_status && daysUntil(p.due_date) < 0;
+          return (
+            <div key={p.id} style={{ ...G.card, padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setExtrato({ id: p.tenant_id, name: p.tenants?.name })}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <h4 style={{ fontSize: 16, fontWeight: 800, color: '#102A57', margin: 0 }}>{p.tenants?.name || '—'}</h4>
+                  <span style={G.badge(p.paid_status ? '#10B981' : isLate ? '#EF4444' : '#F59E0B', p.paid_status ? '#F0FDF4' : isLate ? '#FFF1F1' : '#FFFBEB')}>
+                    {p.paid_status ? 'Pago' : isLate ? 'Atrasado' : 'Pendente'}
+                  </span>
                 </div>
-
-                {/* Ações */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: p.paid_status ? '#4A5441' : '#7A3B3B' }}>
-                    R$ {fmt(p.value_amount)}
-                  </div>
-                  <div style={S.bdg(p.paid_status ? '#22c55e' : '#ef4444')}>
-                    {p.paid_status ? 'Pago' : 'Pendente'}
-                  </div>
-                  {/* Indicador de comprovante */}
-                  {p.receipt_url && (
-                    <span title="Comprovante anexado" style={{ display: 'flex', alignItems: 'center' }}>
-                      <FileText size={13} color="#8F9C82" />
-                    </span>
+                <div style={{ fontSize: 13, color: '#94A3B8', fontWeight: 600, marginTop: 4 }}>{p.week_label || '—'} · Vence em {ptDate(p.due_date)}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: p.paid_status ? '#10B981' : '#102A57' }}>R$ {fmt(p.value_amount)}</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {!p.paid_status && (
+                    <>
+                      <button
+                        style={{ ...G.btn(), height: 36, padding: '0 14px', background: '#F3F2FF', color: '#5B58EC', border: '1px solid #C7D2FE' }}
+                        onClick={(e) => { e.stopPropagation(); handlePixCharge(p); }}
+                        disabled={pixLoadingIds.has(p.id)}
+                        title="Gerar PIX e enviar para o Telegram do locatário"
+                      >
+                        {pixLoadingIds.has(p.id) ? '...' : <><QrCode size={14} /> PIX</>}
+                      </button>
+                      {p.pix_copy_paste && (
+                        <button
+                          style={{ ...G.btn(), height: 36, padding: '0 10px', background: '#F8FAFB' }}
+                          onClick={(e) => { e.stopPropagation(); setPixModal({ paymentId: p.id, qr_code: p.pix_qr_code, copy_paste: p.pix_copy_paste, name: p.tenants?.name, amount: p.value_amount, week_label: p.week_label }); }}
+                          title="Ver QR Code gerado"
+                        >
+                          <QrCode size={14} />
+                        </button>
+                      )}
+                    </>
                   )}
-                  {isLate && p.tenants?.telegram_username && (
-                    <button
-                      style={{ padding: '5px 12px', borderRadius: 999, border: `1px ${p.tenants?.telegram_chat_id ? 'solid' : 'dashed'} #E8E8E6`, background: '#F6F6F4', color: '#6B7280', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', ...(sendingIds.has(p.id) ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
-                      onClick={() => sendBilling(p)}
-                      disabled={sendingIds.has(p.id)}
-                    >
-                      {sendingIds.has(p.id) ? 'Enviando...' : p.tenants?.telegram_chat_id ? 'Cobrar' : 'Ativar'}
-                    </button>
-                  )}
-                  <button style={{ ...S.btn(p.paid_status ? 'g' : 's'), padding: '5px 14px', fontSize: 12 }} onClick={() => togglePaid(p.id, p.paid_status)}>
-                    {p.paid_status ? 'Desfazer' : 'Pago'}
-                  </button>
+                  <button style={{ ...G.btn(p.paid_status), height: 36, padding: '0 16px' }} onClick={(e) => { e.stopPropagation(); togglePaid(p.id, p.paid_status); }}>{p.paid_status ? 'DESFAZER' : 'PAGO'}</button>
                 </div>
               </div>
-            );
-          })
-        )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Extrato */}
-      {extrato && (
-        <TenantExtrato
-          tenant={extrato}
-          payments={rows}
-          onClose={() => setExtrato(null)}
-          onReceiptUpdate={handleReceiptUpdate}
-        />
-      )}
+      {/* ── EXTRATO ── */}
+      {extrato && <TenantExtrato tenant={extrato} payments={rows} onClose={() => setExtrato(null)} onReceiptUpdate={handleReceiptUpdate} />}
 
-      {/* Modal Ativação Telegram */}
-      {activationModal && (
-        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) setActivationModal(null); }}>
-          <div style={{ ...S.mbox, maxWidth: 420 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 6, color: '#111827' }}>
-              Telegram não vinculado
-            </div>
-            <div style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 20 }}>
-              <b style={{ color: '#111827' }}>{activationModal.name}</b> ainda não ativou o bot.<br />
-              Envie o link abaixo para ele clicar e vincular o perfil.
-            </div>
-            <div style={{ background: '#F6F6F4', borderRadius: 14, padding: '10px 14px', fontSize: 12, color: '#3B3E9A', wordBreak: 'break-all', marginBottom: 16 }}>
-              {activationModal.link}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              <button style={{ ...S.btn('p'), justifyContent: 'center' }} onClick={() => { navigator.clipboard.writeText(activationModal.link); showToast('Link copiado'); }}>
-                Copiar Link
-              </button>
-              {activationModal.phone && (
-                <a
-                  href={`https://wa.me/${activationModal.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Para receber notificações de cobrança, clique no link e ative o bot:\n${activationModal.link}`)}`}
-                  target="_blank" rel="noreferrer"
-                  style={{ ...S.btn('s'), justifyContent: 'center', textDecoration: 'none' }}
-                >
-                  Enviar pelo WhatsApp
-                </a>
-              )}
-              <button style={{ ...S.btn('g'), justifyContent: 'center' }} onClick={() => setActivationModal(null)}>Fechar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Nova Cobrança */}
+      {/* ── MODAL NOVA COBRANÇA ── */}
       {showAdd && (
-        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowAdd(false); setError(null); } }}>
-          <div style={S.mbox}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20, color: '#111827' }}>Nova Cobrança</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Locatário *</label>
-                <select style={S.inp} value={np.tenant_id} onChange={e => setNp(p => ({ ...p, tenant_id: e.target.value }))}>
-                  <option value="">Selecione</option>
+        <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && setShowAdd(false)}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 500, padding: 40, border: 'none' }}>
+            <h3 style={{ fontSize: 24, fontWeight: 900, color: '#102A57', marginBottom: 32, letterSpacing: '-1px' }}>Nova Cobrança</h3>
+            <div style={{ display: 'grid', gap: 24 }}>
+              <div>
+                <label style={G.statLabel}>Locatário *</label>
+                <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={np.tenant_id} onChange={e => setNp(p => ({ ...p, tenant_id: e.target.value }))}>
+                  <option value="">Selecione...</option>
                   {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
-              <div><label style={S.lbl}>Valor R$</label><input style={S.inp} type="number" value={np.value_amount} onChange={e => setNp(p => ({ ...p, value_amount: Number(e.target.value) }))} /></div>
-              <div><label style={S.lbl}>Vencimento</label><input style={S.inp} type="date" value={np.due_date} onChange={e => setNp(p => ({ ...p, due_date: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Semana / Referência</label><input style={S.inp} placeholder="Semana 01/03" value={np.week_label} onChange={e => setNp(p => ({ ...p, week_label: e.target.value }))} /></div>
-              <div>
-                <label style={S.lbl}>Método</label>
-                <select style={S.inp} value={np.payment_method} onChange={e => setNp(p => ({ ...p, payment_method: e.target.value }))}>
-                  {['Pix','Dinheiro','Transferência'].map(m => <option key={m}>{m}</option>)}
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div><label style={G.statLabel}>Valor (R$)</label><input type="number" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={np.value_amount} onChange={e => setNp(p => ({ ...p, value_amount: Number(e.target.value) }))} /></div>
+                <div><label style={G.statLabel}>Vencimento</label><input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={np.due_date} onChange={e => setNp(p => ({ ...p, due_date: e.target.value }))} /></div>
               </div>
+              <div><label style={G.statLabel}>Semana / Referência</label><input placeholder="Ex: Semana 01" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={np.week_label} onChange={e => setNp(p => ({ ...p, week_label: e.target.value }))} /></div>
             </div>
-            {error && <div style={{ color: '#7A3B3B', fontSize: 13, marginBottom: 12 }}>{error}</div>}
-            <div style={{ display: 'flex', gap: 9 }}>
-              <button style={S.btn('s')} onClick={handleAdd} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar'}</button>
-              <button style={S.btn('g')} onClick={() => { setShowAdd(false); setError(null); }}>Cancelar</button>
+            <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
+              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={handleAdd} disabled={saving}>CADASTRAR</button>
+              <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => setShowAdd(false)}>CANCELAR</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── MODAL QR CODE PIX ── */}
+      {pixModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,42,87,0.5)', backdropFilter: 'blur(12px)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setPixModal(null)}>
+          <div style={{ background: '#FFF', borderRadius: 32, padding: 40, width: '100%', maxWidth: 420, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setPixModal(null)} style={{ position: 'absolute', top: 20, right: 20, background: '#F8FAFB', border: 'none', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+
+            <div style={{ width: 56, height: 56, borderRadius: 18, background: '#F3F2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <QrCode size={28} color="#5B58EC" />
+            </div>
+
+            <h3 style={{ fontSize: 20, fontWeight: 900, color: '#102A57', margin: '0 0 4px', letterSpacing: '-0.5px' }}>PIX Gerado</h3>
+            <p style={{ color: '#94A3B8', fontWeight: 600, fontSize: 14, margin: '0 0 24px' }}>
+              {pixModal.name} · R$ {fmt(pixModal.amount)} · {pixModal.week_label}
+            </p>
+
+            {pixModal.qr_code && (
+              <img src={pixModal.qr_code} alt="QR Code PIX" style={{ width: 200, height: 200, borderRadius: 16, marginBottom: 24, border: '2px solid #F1F5F9' }} />
+            )}
+
+            <div style={{ background: '#F8FAFB', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 8 }}>Código Copia e Cola</div>
+              <div style={{ fontSize: 11, color: '#102A57', fontWeight: 600, wordBreak: 'break-all', fontFamily: 'monospace', maxHeight: 80, overflowY: 'auto' }}>
+                {pixModal.copy_paste}
+              </div>
+            </div>
+
+            <button
+              style={{ ...G.btn(true), width: '100%', justifyContent: 'center', background: copied ? '#10B981' : '#5B58EC', gap: 8 }}
+              onClick={() => copyPix(pixModal.copy_paste)}
+            >
+              {copied ? <><CheckCircle2 size={16} /> COPIADO!</> : <><Copy size={16} /> COPIAR CÓDIGO PIX</>}
+            </button>
+
+            <p style={{ color: '#94A3B8', fontSize: 12, fontWeight: 600, marginTop: 16 }}>
+              ✅ O QR Code e o código foram enviados automaticamente para o Telegram do locatário.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+      `}</style>
     </div>
   );
 }

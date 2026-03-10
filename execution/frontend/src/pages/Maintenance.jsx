@@ -1,89 +1,62 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, X } from 'lucide-react';
+import { S, PillTabs, daysUntil, ptDate, fmt, exportCSV } from '../lib/shared';
+import {
+  Plus, X, Download, Search, Wrench, Shield,
+  FileText, Calendar, Car, ChevronRight, AlertCircle,
+  Clock, CheckCircle2, DollarSign
+} from 'lucide-react';
 
 const CATEGORIES = ['Revisão', 'Pneu', 'Freios', 'Óleo', 'Elétrica', 'Funilaria', 'IPVA', 'Outro'];
+const CAT_EMOJIS = { 'Revisão': '🔧', 'Pneu': '🛞', 'Freios': '🛑', 'Óleo': '🛢️', 'Elétrica': '⚡', 'Funilaria': '🔨', 'IPVA': '📄', 'Outro': '📝' };
 const FINE_BUCKET = 'fine-photos';
 
-const PASTEL = {
-  '#22c55e': ['rgba(143,156,130,0.18)', '#4A5441'],
-  '#ef4444': ['#E6C6C6',               '#7A3B3B'],
-  '#f59e0b': ['#FFF0C2',               '#7A5800'],
-  '#3b82f6': ['#DDEAF3',               '#2D5085'],
-  '#6366f1': ['#ECEEFF',               '#3B3E9A'],
-  '#64748b': ['#EBEBEB',               '#4B5563'],
-};
-
-const S = {
-  card: { background: '#fff', borderRadius: 24, padding: 22, boxShadow: 'none', border: '1px solid #EBEBEB' },
-  bdg:  c => {
-    const [bg, text] = PASTEL[c] ?? ['#EBEBEB', '#4B5563'];
-    return { display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:999, fontSize:11, fontWeight:600, background:bg, color:text, whiteSpace:'nowrap' };
-  },
-  btn:  (v = 'p') => ({
-    padding: '10px 22px', borderRadius: 999, border: 'none',
-    background: v==='p' ? '#FFC524' : v==='s' ? 'rgba(143,156,130,0.18)' : v==='d' ? '#E6C6C6' : '#F6F6F4',
-    color: v==='p' ? '#111827' : v==='s' ? '#4A5441' : v==='d' ? '#7A3B3B' : '#374151',
-    fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-  }),
-  inp:  { background: '#F6F6F4', border: 'none', borderRadius: 12, padding: '10px 14px', color: '#111827', fontFamily: 'inherit', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' },
-  lbl:  { fontSize: 11, color: '#9CA3AF', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 6, display: 'block', fontWeight: 600 },
-  ovl:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.12)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 },
-  mbox: { background: '#fff', borderRadius: 28, padding: 32, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.08)', border: '1px solid #EBEBEB' },
-  alr:  d => ({
-    background: d < 0 || d < 7 ? '#E6C6C630' : d < 30 ? '#FFF0C2' : '#EEF4FB',
-    border: `1px solid ${d < 0 || d < 7 ? '#E6C6C6' : d < 30 ? '#F5D98B' : '#C3D9EC'}`,
-    borderRadius: 14, padding: '13px 16px', display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 9,
-  }),
-};
-
-function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000); }
-function ptDate(d) { if (!d) return '—'; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; }
-
 const MAINT_BLANK = { vehicle_id: '', event_type: 'expense', category: 'Revisão', date: '', description: '', value_amount: 0 };
-const INS_BLANK   = { vehicle_id: '', insurer: '', policy_number: '', pay_date: '', expiry_date: '', amount: 0, notes: '' };
-const FINE_BLANK  = { vehicle_id: '', tenant_id: '', amount: 0, date: '', due_date: '', description: '', infraction_code: '', status: 'pendente' };
+const INS_BLANK = { vehicle_id: '', insurer: '', policy_number: '', pay_date: '', expiry_date: '', amount: 0, notes: '' };
+const FINE_BLANK = { vehicle_id: '', tenant_id: '', amount: 0, date: '', due_date: '', description: '', infraction_code: '', status: 'pendente' };
 
-const PillTabs = ({ tabs, active, onChange, style }) => (
-  <div style={{ background: '#F6F6F4', borderRadius: 999, padding: 4, display: 'inline-flex', gap: 2, ...style }}>
-    {tabs.map(([id, l]) => (
-      <button key={id} onClick={() => onChange(id)} style={{
-        padding: '7px 20px', borderRadius: 999, border: 'none',
-        background: active === id ? '#fff' : 'transparent',
-        color: active === id ? '#111827' : '#9CA3AF',
-        boxShadow: active === id ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
-        cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
-        transition: 'all .15s',
-      }}>{l}</button>
-    ))}
-  </div>
-);
+const G = {
+  card: {
+    background: '#FFF',
+    borderRadius: 24,
+    padding: '28px',
+    border: '1px solid #F1F5F9',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+  },
+  statLabel: { fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em' },
+  statValue: { fontSize: 28, fontWeight: 900, color: '#102A57', letterSpacing: '-1.5px' },
+  btn: (primary) => ({
+    padding: '12px 24px', borderRadius: '16px', border: primary ? 'none' : '1px solid #E2E8F0',
+    background: primary ? '#102A57' : '#FFF', color: primary ? '#FFF' : '#102A57',
+    fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s',
+  }),
+  badge: (color, bg) => ({
+    padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+    color, background: bg
+  })
+};
 
 export default function Maintenance() {
-  const [tab, setTab]           = useState('manutencao');
-
-  const [rows, setRows]         = useState([]);
-  const [filter, setFilter]     = useState('all');
+  const [tab, setTab] = useState('manutencao');
+  const [rows, setRows] = useState([]);
+  const [filter, setFilter] = useState('all');
   const [showAddM, setShowAddM] = useState(false);
-  const [nm, setNm]             = useState(MAINT_BLANK);
-
+  const [nm, setNm] = useState(MAINT_BLANK);
   const [insurance, setInsurance] = useState([]);
-  const [showAddI, setShowAddI]   = useState(false);
-  const [ni, setNi]               = useState(INS_BLANK);
-
-  const [fines, setFines]       = useState([]);
+  const [showAddI, setShowAddI] = useState(false);
+  const [ni, setNi] = useState(INS_BLANK);
+  const [fines, setFines] = useState([]);
   const [showAddF, setShowAddF] = useState(false);
-  const [nf, setNf]             = useState(FINE_BLANK);
+  const [nf, setNf] = useState(FINE_BLANK);
   const [finePhoto, setFinePhoto] = useState(null);
   const [fineUploading, setFineUploading] = useState(false);
-  const fineFileRef             = useRef();
-
+  const fineFileRef = useRef();
   const [vehicles, setVehicles] = useState([]);
-  const [tenants, setTenants]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState(null);
+  const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -143,7 +116,7 @@ export default function Maintenance() {
     setFineUploading(true);
     const { data: { user } } = await supabase.auth.getUser();
     const file = files[0];
-    const ext  = file.name.split('.').pop();
+    const ext = file.name.split('.').pop();
     const path = `${user.id}/${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage.from(FINE_BUCKET).upload(path, file);
     if (!upErr) {
@@ -174,281 +147,340 @@ export default function Maintenance() {
     setFines(f => f.map(x => x.id === id ? { ...x, status: next } : x));
   };
 
-  if (loading) return <div className="loading"><div className="spinner" /> Carregando...</div>;
+  if (loading) return <div className="loading"><div className="spinner" /> Carregando frota...</div>;
 
   const totalExpenses = rows.filter(r => r.event_type === 'expense').reduce((s, r) => s + (r.value_amount || 0), 0);
-  const pendSchedule  = rows.filter(r => r.event_type === 'schedule' && !r.done).length;
-  const insExpiring   = insurance.filter(i => i.expiry_date && daysUntil(i.expiry_date) <= 30).length;
-  const finesPending  = fines.filter(f => f.status === 'pendente').reduce((s, f) => s + (f.amount || 0), 0);
-  const filtered      = rows.filter(r => filter === 'all' || r.event_type === filter);
+  const pendSchedule = rows.filter(r => r.event_type === 'schedule' && !r.done).length;
+  const insExpiring = insurance.filter(i => i.expiry_date && daysUntil(i.expiry_date) <= 30).length;
+  const finesPending = fines.filter(f => f.status === 'pendente').reduce((s, f) => s + (f.amount || 0), 0);
+  const filtered = rows.filter(r => filter === 'all' || r.event_type === filter);
 
   return (
-    <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <button style={{ ...S.btn(), gap: 6 }} onClick={() => {
-          if (tab === 'manutencao') setShowAddM(true);
-          else if (tab === 'seguro') setShowAddI(true);
-          else setShowAddF(true);
-        }}><Plus size={14} /> Registrar</button>
+    <div className="page" style={{ background: '#F8FAFB', minHeight: '100vh', padding: '24px 0' }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ marginBottom: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 32, fontWeight: 900, color: '#102A57', letterSpacing: '-1.5px', margin: 0 }}>Frota</h2>
+        <p style={{ color: '#64748B', fontWeight: 600, marginTop: 4, fontSize: 16 }}>Inteligência em manutenção e conformidade</p>
+
+        <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button style={G.btn(true)} onClick={() => setShowAddM(true)}><Wrench size={18} /> MANUTENÇÃO</button>
+          <button style={G.btn(true)} onClick={() => setShowAddI(true)}><Shield size={18} /> SEGURO</button>
+          <button style={G.btn(true)} onClick={() => setShowAddF(true)}><AlertCircle size={18} /> MULTA</button>
+        </div>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(165px,1fr))', gap: 12, marginBottom: 24 }}>
+      {/* ── STATS GRID ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24, marginBottom: 40 }}>
         {[
-          { l: 'Despesas Manutenção', v: `R$ ${totalExpenses.toLocaleString('pt-BR',{minimumFractionDigits:2})}`, ac: '#ef4444' },
-          { l: 'Agendamentos Pend.',  v: pendSchedule,   ac: '#f59e0b' },
-          { l: 'Seguros Vencendo',    v: insExpiring,    ac: '#3b82f6' },
-          { l: 'Multas Pendentes',    v: `R$ ${finesPending.toLocaleString('pt-BR',{minimumFractionDigits:2})}`, ac: '#ef4444' },
+          { l: 'Investimento Frota', v: `R$ ${fmt(totalExpenses)}`, icon: DollarSign, color: '#102A57', bg: '#F8FAFB' },
+          { l: 'Manutenções Pend.', v: pendSchedule, icon: Wrench, color: '#5B58EC', bg: '#F3F2FF' },
+          { l: 'Seguros a Renovar', v: insExpiring, icon: Shield, color: '#F59E0B', bg: '#FFFBEB' },
+          { l: 'Multas Pendentes', v: `R$ ${fmt(finesPending)}`, icon: AlertCircle, color: '#EF4444', bg: '#FFF1F1' },
         ].map((s, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 24, padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: 36, fontWeight: 700, color: s.ac, letterSpacing: '-2px', lineHeight: 1, marginBottom: 6 }}>{s.v}</div>
-            <div style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600 }}>{s.l}</div>
+          <div key={i} style={G.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <s.icon size={20} color={s.color} />
+              </div>
+            </div>
+            <div style={G.statLabel}>{s.l}</div>
+            <div style={{ ...G.statValue, color: s.color }}>{s.v}</div>
           </div>
         ))}
       </div>
 
-      {/* Tabs — Pill */}
-      <div style={{ marginBottom: 18 }}>
+      {/* ── NAVIGATION ── */}
+      <div style={{ background: '#FFF', padding: '8px', borderRadius: '20px', border: '1px solid #F1F5F9', marginBottom: 32, display: 'inline-flex' }}>
         <PillTabs
-          tabs={[['multas','Multas'],['manutencao','Manutenção'],['seguro','Seguros']]}
+          tabs={[['manutencao', 'Manutenção'], ['seguro', 'Seguros'], ['multas', 'Multas Recentes']]}
           active={tab}
           onChange={setTab}
         />
       </div>
 
-      {/* ── TAB MANUTENÇÃO ── */}
-      {tab === 'manutencao' && (
-        <>
-          <div style={{ marginBottom: 14 }}>
-            <PillTabs
-              tabs={[['all','Todos'],['expense','Despesas'],['schedule','Agendamentos']]}
-              active={filter}
-              onChange={setFilter}
-            />
-          </div>
-          {filtered.length === 0 ? (
-            <div style={{ ...S.card, textAlign: 'center', padding: 50, color: '#9CA3AF' }}>
-              Nenhum evento registrado.
+      {/* ── CONTENT ── */}
+      <div style={{ minHeight: 400 }}>
+        {tab === 'manutencao' && (
+          <>
+            <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
+              <PillTabs
+                tabs={[['all', 'Todos'], ['expense', 'Realizados'], ['schedule', 'Agendados']]}
+                active={filter}
+                onChange={setFilter}
+              />
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {filtered.map(m => {
-                const days = m.date ? daysUntil(m.date) : null;
-                const isSchedule = m.event_type === 'schedule';
-                const color = isSchedule ? (days === null ? '#6366f1' : days < 0 ? '#ef4444' : days < 7 ? '#ef4444' : days < 30 ? '#f59e0b' : '#3b82f6') : '#ef4444';
-                const veh = m.vehicles;
-                return (
-                  <div key={m.id} style={isSchedule && !m.done ? S.alr(days ?? 999) : { ...S.card, marginBottom: 0, opacity: m.done ? 0.6 : 1 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{veh ? `${veh.brand} ${veh.model}` : '—'}</span>
-                        {veh && <span style={S.bdg('#6366f1')}>{veh.plate}</span>}
-                        <span style={S.bdg(isSchedule ? '#3b82f6' : '#ef4444')}>{isSchedule ? 'Agendamento' : 'Despesa'}</span>
-                        {m.category && <span style={S.bdg('#f59e0b')}>{m.category}</span>}
-                      </div>
-                      <div style={{ fontSize: 13, color: '#9CA3AF' }}>{m.description ?? '—'}</div>
-                      {m.date && <div style={{ fontSize: 12, color, marginTop: 3, fontWeight: 600 }}>
-                        {isSchedule && days !== null ? days < 0 ? `Vencido há ${Math.abs(days)}d` : days === 0 ? 'Hoje!' : `${ptDate(m.date)} — em ${days}d` : ptDate(m.date)}
-                      </div>}
-                      {m.value_amount > 0 && <div style={{ fontSize: 13, color: '#7A3B3B', fontWeight: 700, marginTop: 2 }}>R$ {Number(m.value_amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>}
-                    </div>
-                    {isSchedule && (
-                      <button style={{ ...S.btn(m.done ? 'g' : 's'), padding: '6px 16px', fontSize: 12, flexShrink: 0 }}
-                        onClick={() => toggleDone(m.id, m.done)}>{m.done ? 'Reabrir' : 'Concluir'}</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
+            {filtered.length === 0 ? (
+              <div style={{ ...G.card, textAlign: 'center', padding: '80px 40px' }}>
+                <Wrench size={48} color="#E2E8F0" style={{ marginBottom: 20 }} />
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#102A57' }}>Nenhum registro encontrado</h3>
+                <p style={{ color: '#64748B', fontWeight: 600 }}>Tudo em ordem com a sua frota.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {filtered.map(m => {
+                  const days = m.date ? daysUntil(m.date) : null;
+                  const isLate = days !== null && days < 0;
+                  const isSchedule = m.event_type === 'schedule';
+                  const veh = m.vehicles;
 
-      {/* ── TAB SEGURO ── */}
-      {tab === 'seguro' && (
-        <>
-          {insurance.length === 0 ? (
-            <div style={{ ...S.card, textAlign: 'center', padding: 50, color: '#9CA3AF' }}>
-              Nenhum seguro cadastrado.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {insurance.map(ins => {
+                  return (
+                    <div key={m.id} style={{
+                      ...G.card,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      opacity: m.done ? 0.6 : 1,
+                      borderLeft: isSchedule && !m.done ? `6px solid ${isLate ? '#EF4444' : '#5B58EC'}` : '1px solid #F1F5F9'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 900, color: '#102A57' }}>{CAT_EMOJIS[m.category]} {m.category}</span>
+                          <span style={G.badge(isSchedule ? '#5B58EC' : '#64748B', isSchedule ? '#F3F2FF' : '#F8FAFB')}>
+                            {isSchedule ? 'Agendamento' : 'Realizado'}
+                          </span>
+                          {veh && <span style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8' }}>• {veh.brand} {veh.model} ({veh.plate})</span>}
+                        </div>
+                        <h4 style={{ fontSize: 16, fontWeight: 800, color: '#102A57', margin: '0 0 8px' }}>{m.description || 'Sem descrição'}</h4>
+                        <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                          {m.date && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: isLate && !m.done ? '#EF4444' : '#64748B' }}>
+                              <Calendar size={14} />
+                              {ptDate(m.date)} {isSchedule && !m.done && `(${isLate ? 'atrasado' : `em ${days}d`})`}
+                            </div>
+                          )}
+                          {m.value_amount > 0 && (
+                            <div style={{ fontSize: 15, fontWeight: 900, color: '#102A57' }}>R$ {fmt(m.value_amount)}</div>
+                          )}
+                        </div>
+                      </div>
+                      {isSchedule && (
+                        <button
+                          style={{ ...G.btn(!m.done), height: 40, padding: '0 20px' }}
+                          onClick={() => toggleDone(m.id, m.done)}
+                        >
+                          {m.done ? 'REABRIR' : 'CONCLUIR'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'seguro' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {insurance.length === 0 ? (
+              <div style={{ ...G.card, textAlign: 'center', padding: '80px 40px' }}>
+                <Shield size={48} color="#E2E8F0" style={{ marginBottom: 20 }} />
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#102A57' }}>Nenhum seguro ativo</h3>
+              </div>
+            ) : (
+              insurance.map(ins => {
                 const days = ins.expiry_date ? daysUntil(ins.expiry_date) : null;
-                const ac = days === null ? '#6366f1' : days < 0 ? '#ef4444' : days < 7 ? '#ef4444' : days < 30 ? '#f59e0b' : '#22c55e';
+                const isCritical = days !== null && days < 15;
                 const veh = ins.vehicles;
                 return (
-                  <div key={ins.id} style={S.alr(days ?? 999)}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{veh ? `${veh.brand} ${veh.model}` : '—'}</span>
-                        {veh && <span style={S.bdg('#6366f1')}>{veh.plate}</span>}
-                        {ins.insurer && <span style={S.bdg('#64748b')}>{ins.insurer}</span>}
-                        <span style={S.bdg(ins.pay_date ? '#22c55e' : '#f59e0b')}>{ins.pay_date ? '✓ Pago' : 'Pendente'}</span>
+                  <div key={ins.id} style={{ ...G.card, borderLeft: ins.pay_date ? '1px solid #F1F5F9' : '6px solid #F59E0B' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 900, color: '#102A57' }}>{ins.insurer || 'Seguradora Não Inf.'}</span>
+                          <span style={G.badge(ins.pay_date ? '#10B981' : '#F59E0B', ins.pay_date ? '#F0FDF4' : '#FFFBEB')}>
+                            {ins.pay_date ? 'Ativo' : 'Pendente de Pagamento'}
+                          </span>
+                        </div>
+                        <h4 style={{ fontSize: 18, fontWeight: 800, color: '#102A57', margin: '0 0 4px' }}>{veh?.brand} {veh?.model}</h4>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8' }}>Apólice: {ins.policy_number || '—'} · Placa: {veh?.plate}</div>
+
+                        <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isCritical ? '#EF4444' : '#64748B' }}>
+                            <Calendar size={14} style={{ marginRight: 6 }} />
+                            Vence em: {ptDate(ins.expiry_date)} ({days} dias)
+                          </div>
+                          <div style={{ fontSize: 16, fontWeight: 900, color: '#102A57' }}>R$ {fmt(ins.amount)}</div>
+                        </div>
                       </div>
-                      {ins.policy_number && <div style={{ fontSize: 12, color: '#9CA3AF' }}>Apólice: {ins.policy_number}</div>}
-                      <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-                        {ins.pay_date    && <div style={{ fontSize: 12, color: '#9CA3AF' }}>Pago em: {ptDate(ins.pay_date)}</div>}
-                        {ins.expiry_date && <div style={{ fontSize: 12, color: ac, fontWeight: 600 }}>Vence: {ptDate(ins.expiry_date)}{days !== null && ` (${days < 0 ? `vencido há ${Math.abs(days)}d` : `em ${days}d`})`}</div>}
-                        {ins.amount > 0  && <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>R$ {Number(ins.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>}
-                      </div>
-                      {ins.notes && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 3 }}>{ins.notes}</div>}
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </>
-      )}
+              })
+            )}
+          </div>
+        )}
 
-      {/* ── TAB MULTAS ── */}
-      {tab === 'multas' && (
-        <>
-          {fines.length === 0 ? (
-            <div style={{ ...S.card, textAlign: 'center', padding: 50, color: '#9CA3AF' }}>
-              Nenhuma multa registrada.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {fines.map(f => {
+        {tab === 'multas' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {fines.length === 0 ? (
+              <div style={{ ...G.card, textAlign: 'center', padding: '80px 40px' }}>
+                <AlertCircle size={48} color="#E2E8F0" style={{ marginBottom: 20 }} />
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#102A57' }}>Nada por aqui</h3>
+              </div>
+            ) : (
+              fines.map(f => {
                 const veh = f.vehicles;
-                const statusColor = f.status === 'pago' ? '#22c55e' : f.status === 'contestado' ? '#f59e0b' : '#ef4444';
+                const isPaid = f.status === 'pago';
                 return (
-                  <div key={f.id} style={{ ...S.card, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    {f.photo_url && (
-                      <img src={f.photo_url} alt="multa" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 14, flexShrink: 0, cursor: 'pointer' }}
-                        onClick={() => window.open(f.photo_url, '_blank')} />
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{veh ? `${veh.brand} ${veh.model}` : '—'}</span>
-                        {veh && <span style={S.bdg('#6366f1')}>{veh.plate}</span>}
-                        <span style={S.bdg(statusColor)}>{f.status}</span>
-                        {f.tenants && <span style={S.bdg('#64748b')}>{f.tenants.name}</span>}
-                      </div>
-                      {f.description && <div style={{ fontSize: 13, color: '#9CA3AF' }}>{f.description}</div>}
-                      <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-                        {f.date && <div style={{ fontSize: 12, color: '#9CA3AF' }}>Infração: {ptDate(f.date)}</div>}
-                        {f.due_date && (() => { const d = daysUntil(f.due_date); const c = d < 0 ? '#7A3B3B' : d < 7 ? '#7A5800' : '#9CA3AF'; return <div style={{ fontSize: 12, color: c, fontWeight: d < 7 ? 700 : 400 }}>Vence: {ptDate(f.due_date)}{d < 0 ? ' (vencida)' : d < 7 ? ` (${d}d)` : ''}</div>; })()}
-                        {f.infraction_code && <div style={{ fontSize: 12, color: '#9CA3AF' }}>Cód: {f.infraction_code}</div>}
-                        {f.amount > 0 && <div style={{ fontSize: 13, color: '#7A3B3B', fontWeight: 700 }}>R$ {Number(f.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>}
-                      </div>
+                  <div key={f.id} style={{ ...G.card, display: 'flex', gap: 24, alignItems: 'center' }}>
+                    <div style={{ width: 64, height: 64, borderRadius: 16, background: '#F8FAFB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {f.photo_url ? <img src={f.photo_url} style={{ width: '100%', height: '100%', borderRadius: 16, objectFit: 'cover' }} /> : <FileText size={24} color="#CBD5E1" />}
                     </div>
-                    <button style={{ ...S.btn(f.status === 'pago' ? 'g' : 's'), padding: '6px 14px', fontSize: 11, flexShrink: 0 }}
-                      onClick={() => toggleFineStatus(f.id, f.status)}>{f.status === 'pago' ? 'Reabrir' : 'Pago'}</button>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 900, color: '#102A57' }}>{veh?.plate}</span>
+                        <span style={G.badge(isPaid ? '#10B981' : '#EF4444', isPaid ? '#F0FDF4' : '#FFF1F1')}>{f.status}</span>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#64748B' }}>{f.description}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', marginTop: 4 }}>Condutor: {f.tenants?.name || 'Não identificado'}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#EF4444', marginBottom: 8 }}>R$ {fmt(f.amount)}</div>
+                      <button style={{ ...G.btn(isPaid), height: 32, padding: '0 12px', fontSize: 11 }} onClick={() => toggleFineStatus(f.id, f.status)}>
+                        {isPaid ? 'REATIVAR' : 'MARCAR PAGO'}
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
+                )
+              })
+            )}
+          </div>
+        )}
+      </div>
 
-      {/* ── Modal Manutenção ── */}
+      {/* ── MODAIS (LUNARA STYLE) ── */}
       {showAddM && (
-        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowAddM(false); setError(null); } }}>
-          <div style={S.mbox}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20, color: '#111827', letterSpacing: '-0.3px' }}>Registrar Evento</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Tipo</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {[['expense','Despesa'],['schedule','Agendamento']].map(([v,l]) => (
-                    <button key={v} style={{ ...S.btn(nm.event_type === v ? 'p' : 'g'), flex: 1, justifyContent: 'center' }}
-                      onClick={() => setNm(p => ({ ...p, event_type: v }))}>{l}</button>
+        <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && setShowAddM(false)}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 500, padding: 40, border: 'none' }}>
+            <h3 style={{ fontSize: 24, fontWeight: 900, color: '#102A57', marginBottom: 32, letterSpacing: '-1px' }}>Registrar Evento</h3>
+
+            <div style={{ display: 'grid', gap: 24 }}>
+              <div>
+                <label style={G.statLabel}>Tipo de Atividade</label>
+                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                  {[['expense', 'Despesa'], ['schedule', 'Agendamento']].map(([v, l]) => (
+                    <button key={v} onClick={() => setNm(p => ({ ...p, event_type: v }))} style={{ ...G.btn(nm.event_type === v), flex: 1, justifyContent: 'center' }}>{l}</button>
                   ))}
                 </div>
               </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Veículo *</label>
-                <select style={S.inp} value={nm.vehicle_id} onChange={e => setNm(p => ({ ...p, vehicle_id: e.target.value }))}>
-                  <option value="">Selecione</option>
-                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>)}
+
+              <div>
+                <label style={G.statLabel}>Veículo *</label>
+                <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nm.vehicle_id} onChange={e => setNm(p => ({ ...p, vehicle_id: e.target.value }))}>
+                  <option value="">Selecione...</option>
+                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} ({v.plate})</option>)}
                 </select>
               </div>
-              <div><label style={S.lbl}>Categoria</label><select style={S.inp} value={nm.category} onChange={e => setNm(p => ({ ...p, category: e.target.value }))}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></div>
-              <div><label style={S.lbl}>Data</label><input style={S.inp} type="date" value={nm.date} onChange={e => setNm(p => ({ ...p, date: e.target.value }))} /></div>
-              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Descrição</label><input style={S.inp} placeholder="Troca de óleo, revisão dos 30k..." value={nm.description} onChange={e => setNm(p => ({ ...p, description: e.target.value }))} /></div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={G.statLabel}>Categoria</label>
+                  <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nm.category} onChange={e => setNm(p => ({ ...p, category: e.target.value }))}>
+                    {CATEGORIES.map(c => <option key={c}>{CAT_EMOJIS[c]} {c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={G.statLabel}>Data</label>
+                  <input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nm.date} onChange={e => setNm(p => ({ ...p, date: e.target.value }))} />
+                </div>
+              </div>
+
+              <div>
+                <label style={G.statLabel}>Descrição</label>
+                <input placeholder="Ex: Troca de óleo 5W30" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nm.description} onChange={e => setNm(p => ({ ...p, description: e.target.value }))} />
+              </div>
+
               {nm.event_type === 'expense' && (
-                <div><label style={S.lbl}>Valor R$</label><input style={S.inp} type="number" value={nm.value_amount} onChange={e => setNm(p => ({ ...p, value_amount: Number(e.target.value) }))} /></div>
+                <div>
+                  <label style={G.statLabel}>Valor (R$)</label>
+                  <input type="number" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nm.value_amount} onChange={e => setNm(p => ({ ...p, value_amount: Number(e.target.value) }))} />
+                </div>
               )}
             </div>
-            {error && <div style={{ color: '#7A3B3B', fontSize: 13, marginBottom: 12 }}>⚠ {error}</div>}
-            <div style={{ display: 'flex', gap: 9 }}>
-              <button style={S.btn('s')} onClick={handleAddM} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar'}</button>
-              <button style={S.btn('g')} onClick={() => { setShowAddM(false); setError(null); }}>Cancelar</button>
+
+            {error && <div style={{ color: '#EF4444', fontSize: 13, marginTop: 20, fontWeight: 700 }}>{error}</div>}
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
+              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={handleAddM} disabled={saving}>{saving ? 'PROCESSANDO...' : 'SALVAR REGISTRO'}</button>
+              <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => setShowAddM(false)}>CANCELAR</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Modal Seguro ── */}
+      {/* Modal Seguro */}
       {showAddI && (
-        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowAddI(false); setError(null); } }}>
-          <div style={S.mbox}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20, color: '#111827', letterSpacing: '-0.3px' }}>Cadastrar Seguro</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Veículo *</label>
-                <select style={S.inp} value={ni.vehicle_id} onChange={e => setNi(p => ({ ...p, vehicle_id: e.target.value }))}>
-                  <option value="">Selecione</option>
-                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>)}
+        <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && setShowAddI(false)}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 500, padding: 40, border: 'none' }}>
+            <h3 style={{ fontSize: 24, fontWeight: 900, color: '#102A57', marginBottom: 32, letterSpacing: '-1px' }}>Frota Insurance</h3>
+            <div style={{ display: 'grid', gap: 24 }}>
+              <div>
+                <label style={G.statLabel}>Veículo *</label>
+                <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={ni.vehicle_id} onChange={e => setNi(p => ({ ...p, vehicle_id: e.target.value }))}>
+                  <option value="">Selecione...</option>
+                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} ({v.plate})</option>)}
                 </select>
               </div>
-              <div><label style={S.lbl}>Seguradora</label><input style={S.inp} placeholder="Porto Seguro" value={ni.insurer} onChange={e => setNi(p => ({ ...p, insurer: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Nº Apólice</label><input style={S.inp} placeholder="0000000" value={ni.policy_number} onChange={e => setNi(p => ({ ...p, policy_number: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Data Pagamento</label><input style={S.inp} type="date" value={ni.pay_date} onChange={e => setNi(p => ({ ...p, pay_date: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Vencimento</label><input style={S.inp} type="date" value={ni.expiry_date} onChange={e => setNi(p => ({ ...p, expiry_date: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Valor R$</label><input style={S.inp} type="number" value={ni.amount} onChange={e => setNi(p => ({ ...p, amount: Number(e.target.value) }))} /></div>
-              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Obs</label><input style={S.inp} placeholder="Observações adicionais" value={ni.notes} onChange={e => setNi(p => ({ ...p, notes: e.target.value }))} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div><label style={G.statLabel}>Seguradora</label><input style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={ni.insurer} onChange={e => setNi(p => ({ ...p, insurer: e.target.value }))} /></div>
+                <div><label style={G.statLabel}>Apólice</label><input style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={ni.policy_number} onChange={e => setNi(p => ({ ...p, policy_number: e.target.value }))} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div><label style={G.statLabel}>Vencimento</label><input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={ni.expiry_date} onChange={e => setNi(p => ({ ...p, expiry_date: e.target.value }))} /></div>
+                <div><label style={G.statLabel}>Valor (R$)</label><input type="number" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={ni.amount} onChange={e => setNi(p => ({ ...p, amount: Number(e.target.value) }))} /></div>
+              </div>
             </div>
-            {error && <div style={{ color: '#7A3B3B', fontSize: 13, marginBottom: 12 }}>⚠ {error}</div>}
-            <div style={{ display: 'flex', gap: 9 }}>
-              <button style={S.btn('s')} onClick={handleAddI} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar'}</button>
-              <button style={S.btn('g')} onClick={() => { setShowAddI(false); setError(null); }}>Cancelar</button>
+            {error && <div style={{ color: '#EF4444', fontSize: 13, marginTop: 20, fontWeight: 700 }}>{error}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
+              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={handleAddI} disabled={saving}>{saving ? '...' : 'SALVAR SEGURO'}</button>
+              <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => setShowAddI(false)}>CANCELAR</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Modal Multa ── */}
+      {/* Modal Multa */}
       {showAddF && (
-        <div style={S.ovl} onClick={e => { if (e.target === e.currentTarget) { setShowAddF(false); setFinePhoto(null); setError(null); } }}>
-          <div style={S.mbox}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20, color: '#111827', letterSpacing: '-0.3px' }}>Registrar Multa</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Veículo *</label><select style={S.inp} value={nf.vehicle_id} onChange={e => setNf(p => ({ ...p, vehicle_id: e.target.value }))}><option value="">Selecione</option>{vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} — {v.plate}</option>)}</select></div>
-              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Locatário (responsável)</label><select style={S.inp} value={nf.tenant_id} onChange={e => setNf(p => ({ ...p, tenant_id: e.target.value }))}><option value="">Nenhum / Proprietário</option>{tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
-              <div><label style={S.lbl}>Valor R$</label><input style={S.inp} type="number" value={nf.amount} onChange={e => setNf(p => ({ ...p, amount: Number(e.target.value) }))} /></div>
-              <div><label style={S.lbl}>Data da Infração</label><input style={S.inp} type="date" value={nf.date} onChange={e => setNf(p => ({ ...p, date: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Código da Infração</label><input style={S.inp} placeholder="55412" value={nf.infraction_code} onChange={e => setNf(p => ({ ...p, infraction_code: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Vencimento da Multa</label><input style={S.inp} type="date" value={nf.due_date} onChange={e => setNf(p => ({ ...p, due_date: e.target.value }))} /></div>
-              <div><label style={S.lbl}>Status</label><select style={S.inp} value={nf.status} onChange={e => setNf(p => ({ ...p, status: e.target.value }))}>{['pendente','pago','contestado'].map(s => <option key={s}>{s}</option>)}</select></div>
-              <div style={{ gridColumn: '1/-1' }}><label style={S.lbl}>Descrição</label><input style={S.inp} placeholder="Ex: Excesso de velocidade 20km/h" value={nf.description} onChange={e => setNf(p => ({ ...p, description: e.target.value }))} /></div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={S.lbl}>Foto da Notificação</label>
-                <input ref={fineFileRef} type="file" accept="image/*" hidden onChange={e => handleFinePhotoUpload(e.target.files)} />
-                {finePhoto ? (
-                  <div style={{ position: 'relative', display: 'inline-block' }}>
-                    <img src={finePhoto.url} alt="multa" style={{ height: 90, borderRadius: 14, objectFit: 'cover' }} />
-                    <button onClick={() => setFinePhoto(null)} style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,.5)', border: 'none', color: '#fff', borderRadius: 999, width: 22, height: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} /></button>
-                  </div>
-                ) : (
-                  <button style={{ ...S.btn('g'), width: '100%', justifyContent: 'center' }} onClick={() => fineFileRef.current.click()} disabled={fineUploading}>
-                    {fineUploading ? 'Enviando...' : 'Anexar Foto'}
-                  </button>
-                )}
+        <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && setShowAddF(false)}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 500, padding: 40, border: 'none' }}>
+            <h3 style={{ fontSize: 24, fontWeight: 900, color: '#102A57', marginBottom: 32, letterSpacing: '-1px' }}>Registrar Multa</h3>
+            <div style={{ display: 'grid', gap: 24 }}>
+              <div>
+                <label style={G.statLabel}>Veículo *</label>
+                <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.vehicle_id} onChange={e => setNf(p => ({ ...p, vehicle_id: e.target.value }))}>
+                  <option value="">Selecione...</option>
+                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} {v.model} ({v.plate})</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={G.statLabel}>Infrator (Opcional)</label>
+                <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.tenant_id} onChange={e => setNf(p => ({ ...p, tenant_id: e.target.value }))}>
+                  <option value="">Desconhecido / Proprietário</option>
+                  {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div><label style={G.statLabel}>Valor (R$)</label><input type="number" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.amount} onChange={e => setNf(p => ({ ...p, amount: Number(e.target.value) }))} /></div>
+                <div><label style={G.statLabel}>Data Infração</label><input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.date} onChange={e => setNf(p => ({ ...p, date: e.target.value }))} /></div>
+              </div>
+              <div>
+                <label style={G.statLabel}>Foto da Infração</label>
+                <button style={{ ...G.btn(), width: '100%', marginTop: 8 }} onClick={() => fineFileRef.current.click()}>
+                  {fineUploading ? 'ENVIANDO...' : finePhoto ? 'FOTO ANEXADA ✓' : 'ANEXAR COMPROVANTE'}
+                </button>
+                <input ref={fineFileRef} type="file" hidden onChange={e => handleFinePhotoUpload(e.target.files)} />
               </div>
             </div>
-            {error && <div style={{ color: '#7A3B3B', fontSize: 13, marginBottom: 12 }}>⚠ {error}</div>}
-            <div style={{ display: 'flex', gap: 9 }}>
-              <button style={S.btn('d')} onClick={handleAddF} disabled={saving}>{saving ? 'Salvando...' : 'Registrar Multa'}</button>
-              <button style={S.btn('g')} onClick={() => { setShowAddF(false); setFinePhoto(null); setError(null); }}>Cancelar</button>
+            {error && <div style={{ color: '#EF4444', fontSize: 13, marginTop: 20, fontWeight: 700 }}>{error}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
+              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={handleAddF} disabled={saving}>{saving ? '...' : 'SALVAR MULTA'}</button>
+              <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => setShowAddF(false)}>CANCELAR</button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

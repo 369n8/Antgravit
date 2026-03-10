@@ -17,3 +17,6 @@ vcl/
 venv/
 ENV/
 .DS_Store
+debug-stripe.mjs
+debug-super-admin.mjs
+debug.js

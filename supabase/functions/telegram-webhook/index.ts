@@ -2,12 +2,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Secrets ───────────────────────────────────────────────────────────────────
-const BOT_TOKEN         = Deno.env.get("TELEGRAM_BOT_TOKEN")        ?? "";
-const ADMIN_TELEGRAM_ID = Deno.env.get("ADMIN_TELEGRAM_ID")         ?? "";
-const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")              ?? "";
-const SUPABASE_SVC_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const OPENROUTER_KEY    = Deno.env.get("OPENROUTER_API_KEY")        ?? "";
-const AI_MODEL          = Deno.env.get("AI_MODEL")                  ?? "google/gemini-2.0-flash-001";
+const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+const ADMIN_TELEGRAM_ID = Deno.env.get("ADMIN_TELEGRAM_ID") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_SVC_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "google/gemini-2.0-flash-001";
 
 const FINE_BUCKET = "fine-photos";
 
@@ -27,7 +27,7 @@ interface ToolCall {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const cleanUser    = (u: string) => u.replace(/^@/, "").toLowerCase();
+const cleanUser = (u: string) => u.replace(/^@/, "").toLowerCase();
 const normalizePlate = (p: string) => p.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 
 async function tgSend(chatId: number | string, text: string): Promise<void> {
@@ -107,16 +107,16 @@ const AI_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          id:               { type: "string", description: "UUID do locatário." },
-          name:             { type: "string" },
-          status:           { type: "string", enum: ["ativo", "encerrado"] },
-          blacklisted:      { type: "boolean" },
-          rent_weekly:      { type: "number" },
-          phone:            { type: "string" },
-          email:            { type: "string" },
-          telegram_username:{ type: "string" },
-          notes:            { type: "string" },
-          app_rating:       { type: "string" },
+          id: { type: "string", description: "UUID do locatário." },
+          name: { type: "string" },
+          status: { type: "string", enum: ["ativo", "encerrado"] },
+          blacklisted: { type: "boolean" },
+          rent_weekly: { type: "number" },
+          phone: { type: "string" },
+          email: { type: "string" },
+          telegram_username: { type: "string" },
+          notes: { type: "string" },
+          app_rating: { type: "string" },
         },
         required: ["id"],
       },
@@ -135,13 +135,13 @@ const AI_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          id:             { type: "string", description: "UUID do pagamento." },
-          paid_status:    { type: "boolean" },
-          paid_date:      { type: "string", description: "YYYY-MM-DD." },
-          value_amount:   { type: "number" },
-          due_date:       { type: "string", description: "YYYY-MM-DD." },
+          id: { type: "string", description: "UUID do pagamento." },
+          paid_status: { type: "boolean" },
+          paid_date: { type: "string", description: "YYYY-MM-DD." },
+          value_amount: { type: "number" },
+          due_date: { type: "string", description: "YYYY-MM-DD." },
           payment_method: { type: "string" },
-          week_label:     { type: "string" },
+          week_label: { type: "string" },
         },
         required: ["id"],
       },
@@ -179,9 +179,9 @@ const AI_TOOLS = [
         type: "object",
         properties: {
           vehicle_plate: { type: "string", description: "Placa do veículo (ex: BRA2E25) para filtrar. Preferir em relação a vehicle_id quando a placa é conhecida." },
-          vehicle_id:    { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
-          checkin_type:  { type: "string", enum: ["entrega", "devolucao", "exit", "todos"], description: "Padrão: todos. Use 'exit' para check-out de devolução." },
-          limit:         { type: "number", description: "Máximo de registros. Use 1 para buscar apenas o mais recente." },
+          vehicle_id: { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
+          checkin_type: { type: "string", enum: ["entrega", "devolucao", "exit", "todos"], description: "Padrão: todos. Use 'exit' para check-out de devolução." },
+          limit: { type: "number", description: "Máximo de registros. Use 1 para buscar apenas o mais recente." },
         },
       },
     },
@@ -198,7 +198,7 @@ const AI_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          status:     { type: "string", enum: ["pendente", "pago", "contestado", "todos"], description: "Padrão: todos." },
+          status: { type: "string", enum: ["pendente", "pago", "contestado", "todos"], description: "Padrão: todos." },
           vehicle_id: { type: "string", description: "UUID do veículo. Opcional." },
         },
       },
@@ -218,13 +218,13 @@ const AI_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          vehicle_plate:   { type: "string", description: "Placa do veículo (ex: BRA2E25). Obrigatório." },
-          amount:          { type: "number", description: "Valor da multa em R$." },
-          date:            { type: "string", description: "Data da infração YYYY-MM-DD." },
-          due_date:        { type: "string", description: "Data de vencimento da multa YYYY-MM-DD." },
-          description:     { type: "string", description: "Descrição da infração." },
+          vehicle_plate: { type: "string", description: "Placa do veículo (ex: BRA2E25). Obrigatório." },
+          amount: { type: "number", description: "Valor da multa em R$." },
+          date: { type: "string", description: "Data da infração YYYY-MM-DD." },
+          due_date: { type: "string", description: "Data de vencimento da multa YYYY-MM-DD." },
+          description: { type: "string", description: "Descrição da infração." },
           infraction_code: { type: "string", description: "Código da infração ex: 55412." },
-          status:          { type: "string", enum: ["pendente", "pago", "contestado"], description: "Padrão: pendente." },
+          status: { type: "string", enum: ["pendente", "pago", "contestado"], description: "Padrão: pendente." },
         },
         required: ["vehicle_plate"],
       },
@@ -262,10 +262,10 @@ const AI_TOOLS = [
         type: "object",
         properties: {
           vehicle_plate: { type: "string", description: "Placa do veículo para filtrar (ex: BRA2E25). Opcional." },
-          vehicle_id:    { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
-          category:      { type: "string", enum: ["Revisão", "Pneu", "Freios", "Óleo", "Elétrica", "Funilaria", "IPVA", "Outro", "todas"], description: "Filtrar por categoria. Padrão: todas." },
-          event_type:    { type: "string", enum: ["expense", "schedule", "todos"], description: "expense=despesas reais, schedule=agendamentos futuros. Padrão: todos." },
-          desde:         { type: "string", description: "Data inicial YYYY-MM-DD para filtrar. Ex: primeiro dia do mês atual." },
+          vehicle_id: { type: "string", description: "UUID do veículo. Use vehicle_plate quando possível." },
+          category: { type: "string", enum: ["Revisão", "Pneu", "Freios", "Óleo", "Elétrica", "Funilaria", "IPVA", "Outro", "todas"], description: "Filtrar por categoria. Padrão: todas." },
+          event_type: { type: "string", enum: ["expense", "schedule", "todos"], description: "expense=despesas reais, schedule=agendamentos futuros. Padrão: todos." },
+          desde: { type: "string", description: "Data inicial YYYY-MM-DD para filtrar. Ex: primeiro dia do mês atual." },
         },
       },
     },
@@ -292,6 +292,29 @@ const AI_TOOLS = [
   {
     type: "function",
     function: {
+      name: "listar_veiculos",
+      description: [
+        "OBRIGATÓRIO usar quando perguntarem sobre veículos, carros, motos, frota, quantos carros tem, quais carros, veículos disponíveis, veículos locados, ou qualquer informação sobre a frota.",
+        "Também use para 'quantos carros eu tenho?', 'me mostra os carros', 'quero saber dos carros', 'veículos cadastrados'.",
+        "Retorna todos os veículos da tabela 'vehicles' com dados completos.",
+        "Campos: id, plate, brand, model, year, color, type, status('disponivel'|'locado'|'manutencao'), km, fuel_level, rent_weekly, current_tenant_id, notes.",
+        "Use o resultado para contar, filtrar por status, ou dar qualquer informação sobre a frota.",
+      ].join(" "),
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: ["disponivel", "locado", "manutencao", "todos"],
+            description: "Filtrar por status. Padrão: todos.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "criar_contrato_locacao",
       description: [
         "Vincula um locatário a um veículo: atualiza vehicles.status='locado' e vehicles.current_tenant_id.",
@@ -302,8 +325,8 @@ const AI_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          tenant_id:   { type: "string", description: "UUID do locatário (tenants.id)." },
-          vehicle_id:  { type: "string", description: "UUID do veículo (vehicles.id)." },
+          tenant_id: { type: "string", description: "UUID do locatário (tenants.id)." },
+          vehicle_id: { type: "string", description: "UUID do veículo (vehicles.id)." },
           rent_weekly: { type: "number", description: "Valor semanal opcional para atualizar no veículo." },
         },
         required: ["tenant_id", "vehicle_id"],
@@ -464,11 +487,11 @@ async function executeTool(
       status: (args.status as string) ?? "pendente",
       client_id: clientId,
     };
-    if (vehicleId)          fineData.vehicle_id     = vehicleId;
-    if (args.amount)        fineData.amount         = args.amount;
-    if (args.date)          fineData.date           = args.date;
-    if (args.due_date)      fineData.due_date       = args.due_date;
-    if (args.description)   fineData.description    = args.description;
+    if (vehicleId) fineData.vehicle_id = vehicleId;
+    if (args.amount) fineData.amount = args.amount;
+    if (args.date) fineData.date = args.date;
+    if (args.due_date) fineData.due_date = args.due_date;
+    if (args.description) fineData.description = args.description;
     if (args.infraction_code) fineData.infraction_code = args.infraction_code;
 
     // Check for a pending fine with no vehicle_id (from photo upload)
@@ -494,8 +517,8 @@ async function executeTool(
   }
 
   if (name === "verificar_vencimentos") {
-    const dias   = (args.dias as number) ?? 7;
-    const today  = new Date().toISOString().slice(0, 10);
+    const dias = (args.dias as number) ?? 7;
+    const today = new Date().toISOString().slice(0, 10);
     const future = new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10);
 
     const [insRes, maintProxRes, maintAtrasRes, finesVencRes, finesTotalRes, cksRes] = await Promise.all([
@@ -537,18 +560,18 @@ async function executeTool(
 
     return {
       janela_dias: dias,
-      seguros_vencendo:        insRes.data       ?? [],
-      manutencoes_proximas:    maintProxRes.data  ?? [],
-      manutencoes_atrasadas:   maintAtrasRes.data ?? [],
-      multas_vencendo:         finesVencRes.data  ?? [],
+      seguros_vencendo: insRes.data ?? [],
+      manutencoes_proximas: maintProxRes.data ?? [],
+      manutencoes_atrasadas: maintAtrasRes.data ?? [],
+      multas_vencendo: finesVencRes.data ?? [],
       resumo: {
-        seguros_vencendo:       (insRes.data       ?? []).length,
-        manutencoes_proximas:   (maintProxRes.data  ?? []).length,
-        manutencoes_atrasadas:  (maintAtrasRes.data ?? []).length,
+        seguros_vencendo: (insRes.data ?? []).length,
+        manutencoes_proximas: (maintProxRes.data ?? []).length,
+        manutencoes_atrasadas: (maintAtrasRes.data ?? []).length,
         multas_pendentes_total: (finesTotalRes.data ?? []).length,
         valor_multas_pendentes: totalFinesValor,
-        veiculos_km_alta:       altaKm.length,
-        veiculos_km_alta_lista: altaKm.map(c => ({ plate: (c.vehicles as {plate:string})?.plate, km: c.mileage })),
+        veiculos_km_alta: altaKm.length,
+        veiculos_km_alta_lista: altaKm.map(c => ({ plate: (c.vehicles as { plate: string })?.plate, km: c.mileage })),
       },
     };
   }
@@ -566,8 +589,20 @@ async function executeTool(
     return data;
   }
 
+  if (name === "listar_veiculos") {
+    const status = (args.status as string) ?? "todos";
+    let q = supabase
+      .from("vehicles")
+      .select("id, plate, brand, model, year, color, type, status, km, fuel_level, rent_weekly, current_tenant_id, notes")
+      .order("brand");
+    if (status !== "todos") q = q.eq("status", status);
+    const { data, error } = await q;
+    if (error) return { error: error.message };
+    return { total: (data ?? []).length, veiculos: data };
+  }
+
   if (name === "criar_contrato_locacao") {
-    const tenantId  = args.tenant_id  as string;
+    const tenantId = args.tenant_id as string;
     const vehicleId = args.vehicle_id as string;
 
     // Buscar dados para validação e confirmação
@@ -579,7 +614,7 @@ async function executeTool(
     if (tenantRes.error || !tenantRes.data) return { error: `Locatário não encontrado: ${tenantRes.error?.message ?? "ID inválido"}` };
     if (vehicleRes.error || !vehicleRes.data) return { error: `Veículo não encontrado: ${vehicleRes.error?.message ?? "ID inválido"}` };
 
-    const tenant  = tenantRes.data;
+    const tenant = tenantRes.data;
     const vehicle = vehicleRes.data;
 
     if (vehicle.status === "locado") {
@@ -601,7 +636,7 @@ async function executeTool(
       locatario: tenant.name,
       telefone: tenant.phone ?? "—",
       veiculo: `${vehicle.plate} — ${vehicle.brand} ${vehicle.model}`,
-      valor_semanal: `R$${args.rent_weekly ?? (vehicle as {rent_weekly?: number}).rent_weekly ?? "—"}`,
+      valor_semanal: `R$${args.rent_weekly ?? (vehicle as { rent_weekly?: number }).rent_weekly ?? "—"}`,
       status_veiculo: "locado",
     };
   }
@@ -636,7 +671,7 @@ async function executeTool(
     const dateStr = dt.toLocaleDateString("pt-BR") + " às " +
       dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-    const kmStr  = ck.mileage ? Number(ck.mileage).toLocaleString("pt-BR") + " km" : "Não registrada";
+    const kmStr = ck.mileage ? Number(ck.mileage).toLocaleString("pt-BR") + " km" : "Não registrada";
     const photos = Array.isArray(ck.photos) && (ck.photos as unknown[]).length > 0
       ? `${(ck.photos as unknown[]).length} foto(s) documentadas no servidor seguro.`
       : "Documentadas no servidor seguro.";
@@ -713,9 +748,9 @@ async function extractFineDataFromImage(
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_KEY}`,
-        "Content-Type":  "application/json",
-        "HTTP-Referer":  "https://frotaapp.app",
-        "X-Title":       "FrotaApp Fine OCR",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://frotaapp.app",
+        "X-Title": "FrotaApp Fine OCR",
       },
       body: JSON.stringify({
         model: AI_MODEL,
@@ -731,7 +766,7 @@ async function extractFineDataFromImage(
       }),
     });
     if (!res.ok) return { plate: null, amount: null, description: null };
-    const json    = await res.json();
+    const json = await res.json();
     const content = (json.choices?.[0]?.message?.content ?? "{}").trim()
       .replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     return JSON.parse(content);
@@ -827,66 +862,158 @@ async function handleAdminPhoto(
 }
 
 // ── Agentic Loop ──────────────────────────────────────────────────────────────
+// ── Memória de conversação por chat (últimas 10 mensagens) ────────────────────
+const conversationMemory = new Map<string, ChatMessage[]>();
+const MAX_MEMORY = 10;
+
+function getMemory(chatId: string | number): ChatMessage[] {
+  return conversationMemory.get(String(chatId)) ?? [];
+}
+
+function addToMemory(chatId: string | number, msg: ChatMessage) {
+  const key = String(chatId);
+  const mem = conversationMemory.get(key) ?? [];
+  mem.push(msg);
+  // Manter apenas as últimas MAX_MEMORY mensagens
+  while (mem.length > MAX_MEMORY) mem.shift();
+  conversationMemory.set(key, mem);
+}
+
 async function runAdminAgent(
   supabase: ReturnType<typeof createClient>,
   userMessage: string,
   chatId: number | string,
 ): Promise<string> {
   const today = new Date().toLocaleDateString("pt-BR");
-  const SYSTEM = `Você é o Gerente Administrativo IA de uma frota de veículos por aplicativo. Hoje é ${today}.
+  const SYSTEM = [
+    `Você é o "Estagiário" — o Assistente de Inteligência Artificial do FrotaApp. Hoje é ${today}. Você trabalha para o DONO da locadora. Ele é seu CHEFE. Seja leal, eficiente, proativo e direto.`,
+    ``,
+    `═══ O QUE É O FROTAAPP ═══`,
+    `Plataforma SaaS B2B de gestão de frotas para locadoras de veículos de aplicativo (Uber, 99, inDriver). 4 canais: Painel Web, Bot Telegram (VOCÊ), Portal do Motorista, Pré-Cadastro. Cada locadora = "client". Cada motorista = "tenant".`,
+    ``,
+    `═══ MÓDULO VEÍCULOS ═══`,
+    `Campos: id, client_id, type(carro/moto), brand(Honda/Toyota/VW/Fiat/Hyundai/Chevrolet), model(Civic/Corolla/Polo/Argo/HB20/Onix/Mobi), year, plate(formato ABC1D23 ou ABC-1234), color, km(inteiro), fuel_level(0-100), tire_condition(novo/bom/meia vida/troca necessária), rent_weekly(R$350-600/sem), status, current_tenant_id, photos[], docs_ipva, docs_seguro, docs_revisao, notes.`,
+    `STATUS: "disponivel"=pronto p/ locar, "locado"=com motorista, "manutenção"=na oficina, "inadimplente"=motorista devendo.`,
+    `COMBUSTÍVEL: Cheio=100, 3/4=75, Meio=50, 1/4=25, Reserva=10.`,
+    `PNEUS: novo(●●●●), bom(●●●○), meia vida(●●○○), troca necessária(●○○○).`,
+    `LIMITE: Cada locadora tem vehicle_limit (default 10). Acima do limite = bloqueado.`,
+    ``,
+    `═══ MÓDULO LOCATÁRIOS ═══`,
+    `Campos: id(=token do portal), client_id, name, cpf(000.000.000-00), rg, birth_date, phone(WhatsApp), phone2, email, cnh(num CNH), cnh_category(A/B/AB/C/D/E), app_used(Uber/99/InDriver/Lyft/Outro), app_rating(ex:4.87), address, bairro, cidade, estado(SP/RJ/MG), cep, emergency_name, emergency_phone, emergency_relation(Mãe/Pai/Esposa), telegram_username, telegram_chat_id, status(ativo/encerrado/pendente), paid_status(bool), blacklisted(bool), rent_weekly, vehicle_id, payment_day(segunda-feira..domingo), payment_method(Pix/Dinheiro/Boleto/Stripe), pix_key, deposits(caução), notes.`,
+    `STATUS: "pendente"=veio pelo pré-cadastro, aguarda aprovação. "ativo"=contrato ativo, locando veículo. "encerrado"=devolveu veículo.`,
+    `FLUXO NOVO MOTORISTA: 1)Preenche formulário de 3 etapas(Identificação→Habilitação&App→Endereço&Emergência) na URL /pre-cadastro?ref=CLIENT_ID. 2)status="pendente". 3)Admin aprova(escolhe veículo, valor, dia pgto) ou rejeita. 4)Aprovado→ativo, veículo→locado.`,
+    `PORTAL DO MOTORISTA: URL /portal/TENANT_ID. Mostra: dados pessoais, veículo vinculado, pagamentos, botão Stripe, download do contrato PDF.`,
+    `CONTRATO PDF: Gerado automaticamente com dados do locador, locatário, veículo, valor e termos.`,
+    ``,
+    `═══ MÓDULO CHECK-IN / CHECK-OUT ═══`,
+    `Tabela: checkins. Campos: id, client_id, vehicle_id, tenant_id, checkin_type("entrega"=check-in/"exit"=check-out), mileage(KM), fuel_level, tire_condition, photos[], notes, damage_notes, created_at.`,
+    `CHECK-IN (ENTREGA): Veículo "disponivel" → admin registra KM, combustível, fotos → insere checkins → atualiza km/fuel do veículo.`,
+    `CHECK-OUT (DEVOLUÇÃO): Veículo "locado" → admin registra KM retorno, combustível, danos → insere checkins tipo "exit" → calcula KM rodados(retorno-entrega) → veículo volta p/ "disponivel", tenant_id=null.`,
+    `COMPROVANTE: gerar_comprovante busca último checkin/checkout e gera texto formatado p/ WhatsApp. Se for exit, gera "Resumo de Devolução" com KM rodados.`,
+    ``,
+    `═══ MÓDULO PAGAMENTOS ═══`,
+    `Campos: id, client_id, tenant_id, vehicle_id, due_date(vencimento), paid_date(data pgto), paid_status(true=pago/false=pendente), value_amount(R$), payment_method(Pix/Dinheiro/Boleto/Stripe), week_label.`,
+    `VISÕES: semana(seg-dom), mês(1o ao último dia), todos.`,
+    `KPIs: Receita Total, Total Recebido, Total Pendente, Inadimplência%= (pendentes/total)×100.`,
+    `FLUXO: Admin cria→paid_status=false. Motorista paga→Admin confirma OU Stripe webhook marca automaticamente. Stripe usa Connect com split automático.`,
+    `MÉTODOS: Pix(transferência instantânea, mais comum), Dinheiro(espécie), Boleto(bancário), Stripe(cartão online via checkout).`,
+    ``,
+    `═══ MÓDULO MANUTENÇÃO ═══`,
+    `Campos: id, client_id, vehicle_id, event_type("expense"=gasto realizado/"schedule"=agendamento futuro), category, date, description, value_amount(R$), done(bool).`,
+    `CATEGORIAS: 🔧Revisão, 🛞Pneu, 🛑Freios, 🛢️Óleo, ⚡Elétrica, 🔨Funilaria, 📄IPVA, 📝Outro.`,
+    `expense=gasto já pago (ex:"Troquei 4 pneus R$1.200"). schedule=agendamento futuro (ex:"Revisão programada 20/04"). Agendamentos não concluídos = alertas no Dashboard.`,
+    ``,
+    `═══ MÓDULO SEGUROS ═══`,
+    `Campos: id, client_id, vehicle_id, insurer(Porto Seguro/Bradesco/Azul), policy_number, start_date, expiry_date, premium_amount(R$), notes.`,
+    `ALERTAS: Dashboard detecta seguros vencendo em ≤15 dias. Vermelho=≤7 dias, Amarelo=8-15 dias.`,
+    ``,
+    `═══ MÓDULO MULTAS ═══`,
+    `Campos: id, client_id, vehicle_id, tenant_id, amount(R$), description(ex:"Excesso de velocidade"), infraction_code, due_date, status("pendente"/"paga"/"contestada"), photo_url.`,
+    `VIA TELEGRAM: Admin envia FOTO do auto de infração → sistema faz OCR com IA → extrai placa, valor, descrição → insere multa automaticamente.`,
+    ``,
+    `═══ MÓDULO BLACKLIST ═══`,
+    `Campos: cpf_or_plate, reason, created_at. CPFs/placas bloqueados não podem ser aprovados. Motivos: inadimplência grave, dano, roubo, falsificação.`,
+    ``,
+    `═══ DASHBOARD KPIs ═══`,
+    `Receita Mensal(semana×4), Lucro(receita-gastos), Gastos, Taxa Ocupação(locados/total×100), Compliance(em dia/total×100), Gráfico Barras(6 meses), Alertas(seguros, multas), Checklist(IPVA, seguro, revisão).`,
+    `Growth% = ((mês_atual-mês_anterior)/mês_anterior)×100.`,
+    ``,
+    `═══ REGRAS DE OURO ═══`,
+    `1. NUNCA invente dados. SEMPRE chame ferramenta ANTES de responder.`,
+    `2. "Civic","Corolla","Polo" → buscar_veiculo_por_nome. "BRA2E25" → placa. NUNCA trate nome como placa.`,
+    `3. Pronomes "ele/esse/aquele" → use contexto das mensagens anteriores.`,
+    `4. Problemas("quebrou/bateu/furou") → busque veículo, reporte, SUGIRA AÇÃO("colocar em manutenção").`,
+    `5. Formato: direto, executivo, emojis moderados, R$ com 2 decimais, datas DD/MM/AAAA, KM≥1000→"45k km".`,
+    `6. Resumo da frota → verificar_vencimentos(dias=7) → "🛡X seguros|🚨Y multas|🔧Z revisões|🚗W KM alta".`,
+    `7. Comprovante → gerar_comprovante → envie VERBATIM, sem alterar.`,
+    `8. Contrato → listar_locatarios→tenant_id + buscar_veiculo_por_nome→vehicle_id → criar_contrato_locacao.`,
+    `9. Cálculos financeiros → listar_manutencao(category=...) → somar values. listar_pagamentos → filtrar.`,
+    `10. Limites: NÃO altere status direto, NÃO delete, NÃO acesse outros clientes. Se impossível→"faça pelo painel web".`,
+    `11. Nunca exponha UUIDs ou termos técnicos. "vehicle_id"→"o carro", "tenant_id"→"o motorista".`,
+    `12. Listas: máx 10 itens, avise se houver mais.`,
+    ``,
+    `═══ EXEMPLOS DE CONVERSAÇÃO ═══`,
+    `"Como tá a frota?" → verificar_vencimentos → relatório executivo com taxa de ocupação.`,
+    `"O Polo foi pra oficina" → buscar_veiculo_por_nome("Polo") → reporte status + sugira checkout.`,
+    `"Ele quebrou" → (contexto=Polo anterior) → ações: checkout, registrar manutenção, notificar motorista.`,
+    `"Quem tá devendo?" → listar_pagamentos(paid_status=false) → lista de inadimplentes.`,
+    `"Gera comprovante do Civic" → buscar_veiculo_por_nome → pega placa → gerar_comprovante → envie verbatim.`,
+    `"Registra multa R$200 no Polo excesso velocidade" → buscar_veiculo_por_nome → registrar_multa.`,
+    `"Cria contrato pro Carlos com Corolla" → listar_locatarios → buscar_veiculo_por_nome → criar_contrato_locacao.`,
+    `"Quanto gastei com pneus?" → listar_manutencao(category="Pneu") → somar value_amount.`,
+    `"Qual carro é mais rentável?" → listar todos veículos + rent_weekly → ranking.`,
+    ``,
+    `═══ PERSONALIDADE ═══`,
+    `Profissional mas acessível. Chame o admin de "chefe" quando natural. Seja proativo. Se der erro, tente de outro jeito. Português brasileiro sempre. Não repita o que o admin já sabe. Respostas curtas e densas.`,
+  ].join("\n");
 
-REGRAS OBRIGATÓRIAS — siga sempre esta ordem de prioridade:
-A. "Como está a frota?", "resumo", "o que vence?", "situação geral" → verificar_vencimentos(dias=7). Responda com relatório executivo: "🛡 X seguros vencendo | 🚨 Y multas pendentes | 🔧 Z revisões atrasadas | 🚗 W carros com KM alta (≥80k)".
-B. Gastos com pneus, óleo, revisão, manutenção por veículo → listar_manutencao(category="Pneu" etc.). Some os value_amount para totalizar.
-C. KM atual, último combustível registrado de um carro → listar_checkins(vehicle_plate=..., limit=1). O campo mileage=KM, fuel_level=% de combustível.
-D. Motoristas/locatários → listar_locatarios. Pagamentos/dívidas → listar_pagamentos. Seguros → listar_seguros. Multas → listar_multas.
-E. Registrar multa → registrar_multa(vehicle_plate=...). Atualizar dados → atualizar_locatario / atualizar_pagamento.
-F. NUNCA invente dados. SEMPRE chame uma ferramenta antes de responder. NUNCA diga "não tenho acesso".
-G. Terminologia de combustível: "Cheio"=100%, "3/4"=75%, "Meio Tanque" ou "Meio"=50%, "1/4"=25%, "Reserva"=10%. fuel_level no banco é inteiro 0-100.
-H. Ao listar use marcadores (• veículo — dado — status). Responda em português, direto, executivo.
-I. "Gerar comprovante", "comprovante de check-in", "voucher", "recibo", "resumo de devolucao", "resumo da devolucao" → gerar_comprovante(vehicle_plate=...). Envie o campo 'comprovante' do resultado EXATAMENTE como retornado, sem alterar nenhuma linha ou caractere. Se o último registro do veículo for um check-out (tipo exit), o resumo de devolução será gerado automaticamente.
-J. "Criar contrato", "locar veículo", "vincular motorista", "fazer contrato para [Nome] com [Carro]" → 1) use listar_locatarios(status="todos") para encontrar o tenant_id pelo nome do motorista; 2) se a placa for conhecida use listar_checkins(vehicle_plate=...,limit=1) para obter o vehicle_id, senão use buscar_veiculo_por_nome(nome=...); 3) com ambos os IDs em mãos, chame criar_contrato_locacao(tenant_id=..., vehicle_id=...). Confirme: "Contrato criado: [Motorista] → [Placa Modelo] por R$X/semana."`;
 
+
+
+  // Salvar mensagem do usuário na memória
+  addToMemory(chatId, { role: "user", content: userMessage });
+
+  // Montar mensagens com contexto (system + memória + mensagem atual)
+  const memory = getMemory(chatId);
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },
-    { role: "user",   content: userMessage },
+    ...memory,
   ];
 
   for (let round = 0; round < 8; round++) {
-    console.log(`[agent] round ${round}, messages: ${messages.length}`);
+    console.log(`[agent] round ${round}, messages: ${messages.length} `);
     await tgTyping(chatId);
 
-    const toolChoice = round === 0 ? "required" : "auto";
     const reqBody = {
       model: AI_MODEL,
       messages,
       tools: AI_TOOLS,
-      tool_choice: toolChoice,
+      tool_choice: round === 0 ? "required" : "auto",
       max_tokens: 1024,
-      temperature: 0.2,
+      temperature: 0.15,
     };
 
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_KEY}`,
-        "Content-Type":  "application/json",
-        "HTTP-Referer":  "https://frotaapp.app",
-        "X-Title":       "FrotaApp Admin Agent",
+        "Authorization": `Bearer ${OPENROUTER_KEY} `,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://frotaapp.app",
+        "X-Title": "FrotaApp Admin Agent",
       },
       body: JSON.stringify(reqBody),
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[agent] OpenRouter ${res.status}: ${errText}`);
-      return `Erro na IA [${res.status}]: ${errText.slice(0, 300)}`;
+      console.error(`[agent] OpenRouter ${res.status}: ${errText} `);
+      return `Erro na IA[${res.status}]: ${errText.slice(0, 300)} `;
     }
 
     const completion = await res.json();
-    console.log(`[agent] finish_reason: ${completion.choices?.[0]?.finish_reason}`);
+    console.log(`[agent] finish_reason: ${completion.choices?.[0]?.finish_reason} `);
 
-    const choice  = completion.choices?.[0];
+    const choice = completion.choices?.[0];
     const message = choice?.message;
     if (!message) return "Resposta inválida da IA.";
 
@@ -912,20 +1039,24 @@ J. "Criar contrato", "locar veículo", "vincular motorista", "fazer contrato par
   return "Não foi possível processar após múltiplas tentativas.";
 }
 
+function saveAssistantResponse(chatId: number | string, response: string) {
+  addToMemory(chatId, { role: "assistant", content: response });
+}
+
 // ── Handler Principal ─────────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method !== "POST") return new Response("ok");
 
   try {
     const body = await req.json();
-    const msg  = body?.message;
+    const msg = body?.message;
     if (!msg) return new Response("ok");
 
-    const chatId: number   = msg.chat?.id;
+    const chatId: number = msg.chat?.id;
     const username: string = msg.from?.username ?? "";
-    const text: string     = msg.text ?? "";
+    const text: string = msg.text ?? "";
 
-    console.log(`[webhook] @${username} (${chatId}): ${text.slice(0, 80)}`);
+    console.log(`[webhook] @${username} (${chatId}): ${text.slice(0, 80)} `);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SVC_KEY);
 
@@ -941,7 +1072,7 @@ serve(async (req) => {
         if (tenant) {
           await supabase.from("tenants").update({ telegram_chat_id: chatId }).eq("id", tenant.id);
           await tgSend(chatId,
-            `✅ Olá, *${tenant.name}*! Seu perfil foi vinculado com sucesso.\n\nVocê receberá notificações de cobrança diretamente aqui. 🚗`,
+            `✅ Olá, * ${tenant.name}* !Seu perfil foi vinculado com sucesso.\n\nVocê receberá notificações de cobrança diretamente aqui. 🚗`,
           );
           linked = true;
         }
@@ -956,7 +1087,7 @@ serve(async (req) => {
         if (matched) {
           await supabase.from("tenants").update({ telegram_chat_id: chatId }).eq("id", matched.id);
           await tgSend(chatId,
-            `✅ Olá, *${matched.name}*! Seu perfil foi vinculado com sucesso.\n\nVocê receberá notificações de cobrança diretamente aqui. 🚗`,
+            `✅ Olá, * ${matched.name}* !Seu perfil foi vinculado com sucesso.\n\nVocê receberá notificações de cobrança diretamente aqui. 🚗`,
           );
           linked = true;
         }
@@ -987,6 +1118,7 @@ serve(async (req) => {
       if (text) {
         await tgTyping(chatId);
         const answer = await runAdminAgent(supabase, text, chatId);
+        saveAssistantResponse(chatId, answer);
         await tgSend(chatId, answer);
       }
 
