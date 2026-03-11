@@ -20,3 +20,4 @@ ENV/
 debug-stripe.mjs
 debug-super-admin.mjs
 debug.js
+.mcp.json
