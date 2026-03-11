@@ -461,8 +461,16 @@ export default function Maintenance() {
                 </select>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div><label style={G.statLabel}>Valor (R$)</label><input type="number" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.amount} onChange={e => setNf(p => ({ ...p, amount: Number(e.target.value) }))} /></div>
+                <div><label style={G.statLabel}>Valor (R$)</label><input type="number" step="0.01" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.amount} onChange={e => setNf(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))} /></div>
                 <div><label style={G.statLabel}>Data Infração</label><input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.date} onChange={e => setNf(p => ({ ...p, date: e.target.value }))} /></div>
+              </div>
+              <div>
+                <label style={G.statLabel}>Descrição da Infração</label>
+                <input placeholder="Ex: Excesso de velocidade 15-20km/h" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.description} onChange={e => setNf(p => ({ ...p, description: e.target.value }))} />
+              </div>
+              <div>
+                <label style={G.statLabel}>Código da Infração</label>
+                <input placeholder="Ex: 55412" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nf.infraction_code} onChange={e => setNf(p => ({ ...p, infraction_code: e.target.value }))} />
               </div>
               <div>
                 <label style={G.statLabel}>Foto da Infração</label>

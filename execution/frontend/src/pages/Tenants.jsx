@@ -375,7 +375,7 @@ export default function Tenants() {
                     <div style={{ width: 44, height: 44, borderRadius: 14, background: '#FEF3C7', color: '#B45309', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18 }}>{t.name.charAt(0)}</div>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: '#102A57' }}>{t.name}</div>
-                      <div style={{ fontSize: 12, color: '#B45309', fontWeight: 700 }}>{t.app_used || 'App não informado'} {t.app_rating ? `⭐ ${t.app_rating}` : ''}</div>
+                      <div style={{ fontSize: 12, color: '#B45309', fontWeight: 700 }}>{t.app_used || 'App não informado'} {t.app_rating ? `⭐ ${parseFloat(t.app_rating).toFixed(1)}` : ''}</div>
                       {t.phone && <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>{t.phone}</div>}
                     </div>
                   </div>
@@ -422,7 +422,7 @@ export default function Tenants() {
                   <div>
                     <h4 style={{ fontSize: 16, fontWeight: 900, color: '#102A57', margin: 0 }}>{t.name}</h4>
                     <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                      {t.app_used || '—'} {t.app_rating ? `⭐ ${t.app_rating}` : ''}
+                      {t.app_used || '—'} {t.app_rating ? `⭐ ${parseFloat(t.app_rating).toFixed(1)}` : ''}
                     </div>
                   </div>
                 </div>
@@ -522,7 +522,7 @@ export default function Tenants() {
                 <div style={{ width: 80, height: 80, borderRadius: 28, background: '#F3F2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 900, color: '#5B58EC', margin: '0 auto 16px' }}>{p.name.charAt(0)}</div>
                 <h2 style={{ fontSize: 22, fontWeight: 900, color: '#102A57', margin: 0, letterSpacing: '-1px' }}>{p.name}</h2>
                 <p style={{ color: '#94A3B8', fontWeight: 700, marginTop: 4, fontSize: 14 }}>{p.cpf || p.phone || '—'}</p>
-                {p.app_used && <p style={{ color: '#5B58EC', fontWeight: 700, fontSize: 13, margin: '4px 0 0' }}>{p.app_used} {p.app_rating ? `⭐ ${p.app_rating}` : ''}</p>}
+                {p.app_used && <p style={{ color: '#5B58EC', fontWeight: 700, fontSize: 13, margin: '4px 0 0' }}>{p.app_used} {p.app_rating ? `⭐ ${parseFloat(p.app_rating).toFixed(1)}` : ''}</p>}
               </div>
 
               {/* Ações principais */}

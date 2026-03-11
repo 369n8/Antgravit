@@ -56,6 +56,7 @@ export default function DashboardV2({
     }, [vehicles, fleetAlerts, overdueInvoices]);
 
     const totalOverdue = overdueInvoices.reduce((s, i) => s + (i.amount || 0), 0);
+    const totalPendingFines = (fleetAlerts.fines || []).reduce((s, f) => s + (f.amount || 0), 0);
 
     return (
         <div style={{ padding: '20px 0', fontFamily: 'Helvetica, sans-serif' }}>
@@ -130,7 +131,7 @@ export default function DashboardV2({
                     </div>
                     <div>
                         <div style={G.statLabel}>Ações Pendentes</div>
-                        <div style={G.statValue}>R$ {totalOverdue.toLocaleString('pt-BR')}</div>
+                        <div style={G.statValue}>R$ {(totalOverdue + totalPendingFines).toLocaleString('pt-BR')}</div>
                     </div>
                 </div>
 

@@ -8,7 +8,7 @@ import {
   Maximize2
 } from 'lucide-react';
 
-const VEH_BLANK = { brand: '', model: '', year: '', plate: '', type: 'carro', status: 'disponível', daily_rate: 0, color: '', fuel_type: 'Flex', transmission: 'Automático', current_km: 0 };
+const VEH_BLANK = { brand: '', model: '', year: '', plate: '', type: 'carro', status: 'disponível', daily_rate: 0, color: '', fuel_type: 'Flex', transmission: 'Automático', current_km: 0, fuel_level: 0, tire_condition: 'bom', docs_ipva: '', docs_seguro: '', docs_revisao: '' };
 const BUCKET = 'vehicle-photos';
 
 const G = {
@@ -55,6 +55,7 @@ export default function Vehicles() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [checkinData, setCheckinData] = useState({ km: '', fuel: '' });
   const fileRef = useRef();
 
   const load = async () => {
@@ -91,7 +92,12 @@ export default function Vehicles() {
   const handleIO = async (type, status) => {
     if (!sel) return;
     setSaving(true);
-    const { error: err } = await supabase.from('vehicles').update({ status }).eq('id', sel.id);
+    const updateData = { status };
+    if (type === 'in') {
+      if (checkinData.km !== '') updateData.current_km = Number(checkinData.km);
+      if (checkinData.fuel !== '') updateData.fuel_level = Number(checkinData.fuel);
+    }
+    const { error: err } = await supabase.from('vehicles').update(updateData).eq('id', sel.id);
     if (!err) {
       // Registrar log de movimentação (Opcional, mas recomendado para o manual)
       await supabase.from('maintenance').insert({
@@ -99,12 +105,12 @@ export default function Vehicles() {
         event_type: 'expense',
         category: type === 'in' ? 'Check-in' : 'Check-out',
         date: new Date().toISOString(),
-        description: `${type === 'in' ? 'Retorno' : 'Saída'} de veículo registrado.`,
+        description: `${type === 'in' ? 'Retorno' : 'Saída'} de veículo registrado.${checkinData.km ? ` KM: ${checkinData.km}.` : ''}`,
         value_amount: 0
       });
     }
     setSaving(false);
-    setShowIn(false); setShowOut(false); setSel(null); load();
+    setShowIn(false); setShowOut(false); setSel(null); setCheckinData({ km: '', fuel: '' }); load();
   };
 
   const loadPhotos = async (vid) => {
@@ -283,6 +289,27 @@ export default function Vehicles() {
                   <option value="indisponível">Indisponível</option>
                 </select>
               </div>
+              <div>
+                <label style={G.statLabel}>Nível Combustível (%)</label>
+                <input type="number" min="0" max="100" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nv.fuel_level} onChange={e => setNv(p => ({ ...p, fuel_level: Number(e.target.value) }))} />
+              </div>
+              <div>
+                <label style={G.statLabel}>Condição dos Pneus</label>
+                <select style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nv.tire_condition} onChange={e => setNv(p => ({ ...p, tire_condition: e.target.value }))}>
+                  <option value="novo">Novo</option>
+                  <option value="bom">Bom</option>
+                  <option value="meia vida">Meia vida</option>
+                  <option value="troca necessaria">Troca necessária</option>
+                </select>
+              </div>
+              <div>
+                <label style={G.statLabel}>IPVA Vencimento</label>
+                <input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nv.docs_ipva} onChange={e => setNv(p => ({ ...p, docs_ipva: e.target.value }))} />
+              </div>
+              <div>
+                <label style={G.statLabel}>Seguro Vencimento</label>
+                <input type="date" style={{ ...S.inp, height: 48, borderRadius: 14, marginTop: 8 }} value={nv.docs_seguro} onChange={e => setNv(p => ({ ...p, docs_seguro: e.target.value }))} />
+              </div>
             </div>
 
             {error && <div style={{ color: '#EF4444', fontSize: 13, marginTop: 20, fontWeight: 700 }}>{error}</div>}
@@ -339,16 +366,43 @@ export default function Vehicles() {
       {/* CHECK-IN / CHECK-OUT RAPID */}
       {(showIn || showOut) && (
         <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && (setShowIn(false) || setShowOut(false))}>
-          <div style={{ ...G.card, width: '100%', maxWidth: 400, padding: 40, textAlign: 'center', border: 'none' }}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 440, padding: 40, textAlign: 'center', border: 'none' }}>
             <div style={{ width: 80, height: 80, borderRadius: 30, background: showIn ? '#F0FDF4' : '#F3F2FF', color: showIn ? '#10B981' : '#5B58EC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
               {showIn ? <ArrowDownRight size={40} /> : <ArrowUpRight size={40} />}
             </div>
             <h3 style={{ fontSize: 24, fontWeight: 900, color: '#102A57', marginBottom: 12 }}>{showIn ? 'Check-in de Retorno' : 'Check-out de Saída'}</h3>
-            <p style={{ color: '#64748B', fontWeight: 600, fontSize: 15, marginBottom: 32 }}>Confirmar mudança de status para o veículo <strong>{sel?.plate}</strong>?</p>
+            <p style={{ color: '#64748B', fontWeight: 600, fontSize: 15, marginBottom: showIn ? 24 : 32 }}>Confirmar mudança de status para o veículo <strong>{sel?.plate}</strong>?</p>
+
+            {showIn && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, textAlign: 'left' }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>KM Atual</label>
+                  <input
+                    type="number"
+                    placeholder="Ex: 45000"
+                    style={{ ...S.inp, height: 48, borderRadius: 14 }}
+                    value={checkinData.km}
+                    onChange={e => setCheckinData(p => ({ ...p, km: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>Combustível (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="Ex: 80"
+                    style={{ ...S.inp, height: 48, borderRadius: 14 }}
+                    value={checkinData.fuel}
+                    onChange={e => setCheckinData(p => ({ ...p, fuel: e.target.value }))}
+                  />
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 12 }}>
-              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => handleIO(showIn ? 'in' : 'out', showIn ? 'disponível' : 'alugado')}>CONFIRMAR</button>
-              <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => { setShowIn(false); setShowOut(false); }}>VOLTAR</button>
+              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => handleIO(showIn ? 'in' : 'out', showIn ? 'disponível' : 'alugado')} disabled={saving}>{saving ? 'SALVANDO...' : 'CONFIRMAR'}</button>
+              <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => { setShowIn(false); setShowOut(false); setCheckinData({ km: '', fuel: '' }); }}>VOLTAR</button>
             </div>
           </div>
         </div>
