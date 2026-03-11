@@ -1,3 +1,5 @@
+// DEPRECATED — usar DashboardV2.jsx (em components/) via pages/Dashboard.jsx
+// Este arquivo não está roteado no App.jsx. Mantido apenas para referência histórica.
 import { useState, useMemo } from 'react';
 import { TrendingUp, CheckCircle, ArrowUpRight, MessageCircle, Zap, Copy, ShieldAlert, FileWarning, ClipboardCheck, Banknote, Wrench } from 'lucide-react';
 import { S, daysUntil, ptDate } from '../lib/shared';

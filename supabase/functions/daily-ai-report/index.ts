@@ -200,17 +200,22 @@ async function summarizeVehicles(clientId: string): Promise<string> {
   return `${locados}/${data.length} locados`;
 }
 
-async function summarizeVistorias(): Promise<{ text: string; count: number }> {
+async function summarizeVistorias(clientId: string): Promise<{ text: string; count: number }> {
   const { data } = await sb.from("weekly_inspections")
-    .select("current_km, tenants(name), vehicles(plate)")
+    .select("current_km, tenant_id, tenants(name), vehicles(plate)")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(5);
-  if (!data?.length) return { text: "zero vistorias pendentes", count: 0 };
-  const items = data
-    .map(i => `${fName((i as any).tenants?.name)}·${(i as any).vehicles?.plate ?? "—"}`)
+  // Filtra vistorias dos tenants deste client
+  const { data: clientTenants } = await sb.from("tenants")
+    .select("id").eq("client_id", clientId);
+  const tenantIds = new Set((clientTenants ?? []).map((t: any) => t.id));
+  const filtered = (data ?? []).filter((i: any) => tenantIds.has(i.tenant_id));
+  if (!filtered.length) return { text: "zero vistorias pendentes", count: 0 };
+  const items = filtered
+    .map((i: any) => `${fName(i.tenants?.name)}·${i.vehicles?.plate ?? "—"}`)
     .join(", ");
-  return { text: `${data.length} vistoria(s) pendente(s): ${items}`, count: data.length };
+  return { text: `${filtered.length} vistoria(s) pendente(s): ${items}`, count: filtered.length };
 }
 
 async function summarizeInsurance(clientId: string): Promise<{ text: string; count: number }> {
@@ -333,7 +338,7 @@ async function buildCompactState(clientId: string): Promise<string> {
     summarizeVehicles(clientId),
     summarizeInvoices(clientId),
     summarizeFines(clientId),
-    summarizeVistorias(),
+    summarizeVistorias(clientId),
     summarizeInsurance(clientId),
     summarizeTodayDue(clientId),
     summarizeWeeklyChecks(clientId),
