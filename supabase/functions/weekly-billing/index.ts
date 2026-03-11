@@ -174,7 +174,7 @@ serve(async (req) => {
   const { data: tenants, error: tErr } = await sb
     .from("tenants")
     .select("id, name, cpf, rent_weekly, client_id, payment_day, telegram_chat_id")
-    .is("ended_at", null)
+    .eq("status", "ativo")
     .not("rent_weekly", "is", null)
     .gt("rent_weekly", 0);
 
