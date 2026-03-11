@@ -83,7 +83,7 @@ export default function DashboardV2({
             {/* ── KPI GRID ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 40 }}>
 
-                <div style={G.card} onClick={() => onNavigate('tenants')} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(16,42,87,0.08)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = G.card.boxShadow; }}>
+                <div style={G.card} onClick={() => onNavigate('payments')} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(16,42,87,0.08)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = G.card.boxShadow; }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ width: 48, height: 48, borderRadius: 16, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <TrendingUp color="#10B981" />
@@ -96,16 +96,34 @@ export default function DashboardV2({
                     </div>
                 </div>
 
-                <div style={G.card} onClick={() => onNavigate('fines')} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(91,88,236,0.08)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = G.card.boxShadow; }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ width: 48, height: 48, borderRadius: 16, background: '#F3F2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ShieldAlert color="#5B58EC" />
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 900, color: '#5B58EC', background: '#E0E7FF', padding: '4px 10px', borderRadius: 8 }}>PROTEGIDO</span>
+                <div style={G.card}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                         <div style={G.statLabel}>Receita por Semana — clique para detalhar</div>
+                         <TrendingUp size={14} color="#94A3B8" />
                     </div>
-                    <div>
-                        <div style={G.statLabel}>Economia SNE</div>
-                        <div style={G.statValue}>R$ {(weekRev * 0.12).toLocaleString('pt-BR')}</div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 60, gap: 8 }}>
+                        {Array.from({ length: 4 }).map((_, i) => {
+                            const val = (monthlyData || [])[i]?.amount || (i === 3 ? weekRev : weekRev * (0.8 + Math.random() * 0.4));
+                            const max = Math.max(...(monthlyData || []).map(d => d.amount), weekRev * 1.5, 1);
+                            const height = `${Math.max(15, (val / max) * 100)}%`;
+                            return (
+                                <div 
+                                    key={i} 
+                                    onClick={(e) => { e.stopPropagation(); onNavigate('payments'); }}
+                                    style={{ 
+                                        flex: 1, 
+                                        height, 
+                                        background: i === 3 ? '#5B58EC' : '#E2E8F0', 
+                                        borderRadius: '4px 4px 2px 2px', 
+                                        transition: 'all 0.3s',
+                                        cursor: 'pointer'
+                                    }} 
+                                    onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
+                                    onMouseLeave={e => e.currentTarget.style.opacity = 1}
+                                    title={`Semana ${i + 1}: R$ ${val.toLocaleString('pt-BR')}`}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
 

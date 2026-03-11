@@ -4,11 +4,11 @@ import { useAuth } from '../hooks/useAuth';
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: IconGrid },
-  { id: 'vehicles', label: 'Veículos', icon: IconCar },
-  { id: 'tenants', label: 'Locatários', icon: IconUsers },
+  { id: 'vehicles', label: 'Minha Frota', icon: IconCar },
+  { id: 'tenants', label: 'Motoristas', icon: IconUsers },
   { id: 'payments', label: 'Pagamentos', icon: IconMoney },
-  { id: 'maintenance', label: 'Frota', icon: IconWrench },
-  { id: 'fines', label: 'Gestão de CNH', icon: IconAlert },
+  { id: 'maintenance', label: 'Manutenção', icon: IconWrench },
+  { id: 'fines', label: 'Multas & CNH', icon: IconAlert },
   { id: 'automacao', label: 'Motor IA', icon: IconBrain },
 ];
 

@@ -44,7 +44,7 @@ function ptDateTime(iso) {
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function Fines() {
+export default function Fines({ onNavigate }) {
   const [fines, setFines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
@@ -184,6 +184,12 @@ export default function Fines() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
                   <StatusBadge status={f.status} />
                   <div style={{ display: 'flex', gap: 6 }}>
+                    <button 
+                      style={{ ...G.btn(), padding: '6px 12px', fontSize: 11, background: '#F3F2FF', color: '#5B58EC', border: 'none' }}
+                      onClick={() => onNavigate('automacao')}
+                    >
+                      🤖 Analisar com IA
+                    </button>
                     {f.status === 'pendente' && (
                       <button style={{ ...G.btn(), padding: '6px 12px', fontSize: 11, background: '#F3F2FF', color: '#5B58EC', border: 'none' }}
                         onClick={() => handleStatus(f.id, 'indicacao_feita')} disabled={updating === f.id}>Indicar</button>

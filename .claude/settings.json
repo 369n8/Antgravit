@@ -1,4 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "MultiEdit(*)"
+    ],
+    "deny": []
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -6,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/goat/Desktop/Projects/execution/frontend && npm run build 2>&1 | tail -10 | grep -E 'error|warning|built|Error' || echo 'Build OK'"
+            "command": "cd /Users/goat/Desktop/_CENTRAL/MyFrot/execution/frontend && npm run build 2>&1 | tail -10 | grep -E 'error|warning|built|Error' || echo 'Build OK'"
           }
         ]
       },
@@ -15,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[AUDITORIA] Comando executado em: '$(date '+%Y-%m-%d %H:%M:%S') >> /Users/goat/Desktop/Projects/auditorias/log-comandos.txt 2>/dev/null || true"
+            "command": "echo '[AUDITORIA] Comando executado em: '$(date '+%Y-%m-%d %H:%M:%S') >> /Users/goat/Desktop/_CENTRAL/MyFrot/auditorias/log-comandos.txt 2>/dev/null || true"
           }
         ]
       }

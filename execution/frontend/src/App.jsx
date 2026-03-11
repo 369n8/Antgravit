@@ -18,7 +18,7 @@ import Fines from './pages/Fines';
 import AutomacaoIA from './pages/AutomacaoIA';
 
 const PAGES = { dashboard: Dashboard, vehicles: Vehicles, tenants: Tenants, payments: Payments, maintenance: Maintenance, fines: Fines, automacao: AutomacaoIA };
-const TITLES = { dashboard: 'Dashboard', vehicles: 'Veículos', tenants: 'Locatários', payments: 'Pagamentos', maintenance: 'Frota', fines: 'Gestão de CNH', automacao: 'Motor IA' };
+const TITLES = { dashboard: 'Dashboard', vehicles: 'Minha Frota', tenants: 'Motoristas', payments: 'Pagamentos', maintenance: 'Manutenção', fines: 'Multas & CNH', automacao: 'Motor IA' };
 
 export default function App() {
   const { user, loading } = useAuth();
