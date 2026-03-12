@@ -49,6 +49,19 @@ REGRAS ABSOLUTAS:
 6. Termine com UMA pergunta de ação concreta. Ex: "Devo cobrar o João agora?"
 7. Máximo 8 linhas. Sem asteriscos. Valores no formato R$ 1.234,56.`;
 
+const WEEKLY_BRIEFING_SYSTEM_PROMPT =
+  `Você é o Diretor Estratégico da MyFrot entregando o Briefing Semanal Executivo toda segunda-feira às 07h.
+CONTEXTO: O dono acabou de acordar e precisa saber em 60 segundos: o que aconteceu, o que vai exigir ação esta semana.
+REGRAS ABSOLUTAS:
+1. Formato fixo com 4 seções usando os dados fornecidos: FINANCEIRO, FROTA, PRIORIDADES, META.
+2. FINANCEIRO: receita recebida semana passada, em aberto, variação % vs semana anterior se disponível.
+3. FROTA: carros locados, check-ins recebidos vs esperados, manutenções atrasadas.
+4. PRIORIDADES: exatamente 3 itens numerados, do mais urgente ao menos urgente, com nomes reais e valores.
+5. META: com base nos carros disponíveis, calcular receita potencial adicional desta semana.
+6. Tom executivo e cirúrgico. Sem rodeios. Sem elogios. Só fatos e ações.
+7. Use emojis estruturais como no modelo: 💰 🚗 ⚠️ 🎯. Máximo 15 linhas.
+8. Termine com linha de separação ━━━ e uma linha com os comandos disponíveis.`;
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 
 const daysSince  = (d: string) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
@@ -74,6 +87,34 @@ function currentMonthRange(): { start: string; end: string } {
   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
   return { start, end };
+}
+
+// Retorna segunda-feira da semana ANTERIOR
+function lastWeekStart(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -13 : -6 - (day - 1);
+  const mon = new Date(now);
+  mon.setDate(now.getDate() + diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon.toISOString().slice(0, 10);
+}
+
+// Retorna domingo da semana ANTERIOR
+function lastWeekEnd(): string {
+  const mon = new Date(lastWeekStart());
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  sun.setHours(23, 59, 59, 999);
+  return sun.toISOString().slice(0, 10);
+}
+
+// Verifica se hoje é segunda-feira no horário de Brasília
+function isMondayBRT(): boolean {
+  const now = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long", timeZone: "America/Sao_Paulo",
+  });
+  return now.startsWith("segunda");
 }
 
 // ── Telegram helper ───────────────────────────────────────────────────────────
@@ -323,6 +364,114 @@ async function summarizeFinancialProjection(clientId: string): Promise<{ text: s
   };
 }
 
+async function buildWeeklyCompactState(clientId: string): Promise<string> {
+  const weekStart = lastWeekStart();
+  const weekEnd   = lastWeekEnd();
+  const today     = new Date().toISOString().slice(0, 10);
+  const in30      = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+  const [
+    paidRes, pendRes, vehRes, inspRes, overdueRes, availRes, segRes, cnhRes
+  ] = await Promise.all([
+    // Receita recebida semana passada
+    sb.from("invoices")
+      .select("amount")
+      .eq("client_id", clientId)
+      .eq("status", "paid")
+      .gte("paid_at", weekStart + "T00:00:00Z")
+      .lte("paid_at", weekEnd + "T23:59:59Z"),
+    // Em aberto (semana passada + anteriores)
+    sb.from("invoices")
+      .select("amount, tenants(name), due_date")
+      .eq("client_id", clientId)
+      .in("status", ["pending", "overdue"])
+      .order("due_date", { ascending: true })
+      .limit(5),
+    // Status da frota
+    sb.from("vehicles")
+      .select("id, status, plate, model, docs_seguro, docs_ipva")
+      .eq("client_id", clientId),
+    // Check-ins semanais recebidos na semana passada
+    sb.from("weekly_inspections")
+      .select("id, tenant_id, status")
+      .gte("created_at", weekStart + "T00:00:00Z")
+      .lte("created_at", weekEnd + "T23:59:59Z"),
+    // Inadimplentes > 14 dias
+    sb.from("invoices")
+      .select("amount, due_date, tenants(name)")
+      .eq("client_id", clientId)
+      .in("status", ["pending", "overdue"])
+      .lte("due_date", new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10))
+      .order("due_date", { ascending: true })
+      .limit(3),
+    // Carros disponíveis para locar
+    sb.from("vehicles")
+      .select("id, model, plate, daily_rate")
+      .eq("client_id", clientId)
+      .eq("status", "disponível")
+      .limit(5),
+    // Seguros vencendo em 30 dias
+    sb.from("vehicles")
+      .select("plate, model, docs_seguro")
+      .eq("client_id", clientId)
+      .gte("docs_seguro", today)
+      .lte("docs_seguro", in30),
+    // CNH vencendo em 15 dias
+    sb.from("tenants")
+      .select("name, cnh_expiry")
+      .eq("client_id", clientId)
+      .eq("status", "ativo")
+      .gte("cnh_expiry", today)
+      .lte("cnh_expiry", new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10)),
+  ]);
+
+  const receita = (paidRes.data ?? []).reduce((s, i) => s + Number(i.amount ?? 0), 0);
+  const emAberto = (pendRes.data ?? []).reduce((s, i) => s + Number(i.amount ?? 0), 0);
+  const veihs = vehRes.data ?? [];
+  const locados = veihs.filter(v => v.status === "alugado" || v.status === "locado").length;
+  const disponiveis = veihs.filter(v => v.status === "disponível" || v.status === "disponivel").length;
+
+  // Filtrar check-ins deste cliente
+  const { data: clientTenants } = await sb.from("tenants").select("id").eq("client_id", clientId);
+  const tenantIds = new Set((clientTenants ?? []).map((t: any) => t.id));
+  const inspTotal = (inspRes.data ?? []).filter((i: any) => tenantIds.has(i.tenant_id));
+
+  const overdueItems = (overdueRes.data ?? [])
+    .map((i: any) => `${fName(i.tenants?.name)} ${R$(i.amount)} (${daysSince(i.due_date)}d)`)
+    .join(", ");
+
+  const potencialSemanal = (availRes.data ?? [])
+    .reduce((s, v) => s + Number((v as any).daily_rate ?? 0) * 7, 0);
+
+  const segurosStr = (segRes.data ?? [])
+    .map((v: any) => `${v.plate} vence ${v.docs_seguro}`)
+    .join(", ") || "nenhum";
+
+  const cnhStr = (cnhRes.data ?? [])
+    .map((t: any) => `${fName(t.name)} vence ${t.cnh_expiry}`)
+    .join(", ") || "nenhum";
+
+  const weekLabel = (() => {
+    const s = new Date(weekStart);
+    const e = new Date(weekEnd);
+    const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    return `${fmt(s)} a ${fmt(e)}`;
+  })();
+
+  return [
+    `semana_ref: ${weekLabel}`,
+    `receita_recebida: ${R$(receita)}`,
+    `em_aberto: ${R$(emAberto)}`,
+    `frota: ${locados}/${veihs.length} locados, ${disponiveis} disponíveis`,
+    `checkins_recebidos: ${inspTotal.length} de ${tenantIds.size} esperados`,
+    `inadimplentes_críticos: ${overdueItems || "nenhum"}`,
+    `disponíveis_para_locar: ${availRes.data?.map((v: any) => `${v.model}·${v.plate}`).join(", ") || "nenhum"}`,
+    `potencial_semanal_adicional: ${R$(potencialSemanal)}`,
+    `seguros_vencendo: ${segurosStr}`,
+    `cnh_vencendo: ${cnhStr}`,
+  ].join("\n");
+}
+
 // Estado completo condensado — toda a frota em ~100 tokens para o LLM
 async function buildCompactState(clientId: string): Promise<string> {
   const [
@@ -414,6 +563,88 @@ async function sendDailyBriefing(client: {
   console.log(`[daily-ai-report] sent to ${nome} (${client.telegram_chat_id}) llm=${!!llmText}`);
 }
 
+async function sendWeeklyStrategicBriefing(client: {
+  id: string;
+  name: string | null;
+  telegram_chat_id: string | null;
+  telegram_bot_token?: string | null;
+}): Promise<void> {
+  if (!client.telegram_chat_id) return;
+
+  const nome = fName(client.name);
+  const compactState = await buildWeeklyCompactState(client.id);
+
+  let message: string;
+
+  if (OR_KEY) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OR_KEY}`,
+          "HTTP-Referer": "https://myfrot.ai",
+          "X-Title": "MyFrot Weekly Briefing",
+        },
+        body: JSON.stringify({
+          model: LLM_MODEL,
+          max_tokens: 500,
+          temperature: 0.5,
+          messages: [
+            { role: "system", content: WEEKLY_BRIEFING_SYSTEM_PROMPT },
+            { role: "user", content: `Dados da frota de ${nome}:\n${compactState}` },
+          ],
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const llmText = json.choices?.[0]?.message?.content?.trim();
+        if (llmText) {
+          message = `📊 <b>BRIEFING SEMANAL — ${nome}</b>\n\n${llmText}`;
+          await tgSend(client.telegram_chat_id, message, client.telegram_bot_token ?? undefined);
+          console.log(`[weekly-briefing] sent to ${nome} via LLM`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("[weekly-briefing] LLM error:", err);
+    }
+  }
+
+  // Fallback sem LLM — formato estruturado direto
+  const lines = compactState.split("\n");
+  const get = (key: string) => lines.find(l => l.startsWith(key + ":"))?.split(": ").slice(1).join(": ") ?? "—";
+
+  message = [
+    `📊 <b>SEMANA ENCERRADA — Balanço Executivo</b>`,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `🗓️ ${get("semana_ref")}`,
+    ``,
+    `💰 <b>FINANCEIRO</b>`,
+    `├ Receita recebida: ${get("receita_recebida")}`,
+    `└ Em aberto: ${get("em_aberto")}`,
+    ``,
+    `🚗 <b>FROTA</b>`,
+    `├ ${get("frota")}`,
+    `└ Check-ins: ${get("checkins_recebidos")}`,
+    ``,
+    `⚠️ <b>PRIORIDADES</b>`,
+    `  ${get("inadimplentes_críticos")}`,
+    `  Seguros: ${get("seguros_vencendo")}`,
+    `  CNH: ${get("cnh_vencendo")}`,
+    ``,
+    `🎯 <b>META DA SEMANA</b>`,
+    `Potencial adicional: ${get("potencial_semanal_adicional")}`,
+    `Disponíveis: ${get("disponíveis_para_locar")}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `💬 <i>/resumo /multas /inadimplentes /vistorias /vencimentos /semana /financeiro</i>`,
+  ].join("\n");
+
+  await tgSend(client.telegram_chat_id, message, client.telegram_bot_token ?? undefined);
+  console.log(`[weekly-briefing] sent to ${nome} via fallback`);
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -447,13 +678,17 @@ serve(async (req) => {
       );
     }
 
+    // Detectar segunda-feira no horário de Brasília
+    const isMonday = isMondayBRT();
+    const briefingFn = isMonday ? sendWeeklyStrategicBriefing : sendDailyBriefing;
+
     // Envia briefings em paralelo (cada cliente é independente)
     await Promise.allSettled(
-      clients.map(c => sendDailyBriefing(c as any))
+      clients.map(c => briefingFn(c as any))
     );
 
     return new Response(
-      JSON.stringify({ ok: true, clients_notified: clients.length, manual: !!manualClientId }),
+      JSON.stringify({ ok: true, clients_notified: clients.length, manual: !!manualClientId, mode: isMonday ? "weekly" : "daily" }),
       { status: 200, headers: CORS }
     );
   } catch (e) {

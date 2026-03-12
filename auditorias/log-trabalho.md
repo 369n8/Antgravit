@@ -19,6 +19,13 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Briefing Estratégico de Segunda-Feira
+- **Ticket/Diretiva:** TICKET-Monday-Briefing.md
+- **Arquivos alterados:** `supabase/functions/daily-ai-report/index.ts`, `supabase/migrations/20260312000016_monday_briefing_cron.sql`
+- **O que foi feito:** Adicionado modo segunda-feira ao daily-ai-report. Detector isMondayBRT() verifica timezone BRT. Segunda: chama sendWeeklyStrategicBriefing com dados da semana anterior (receita, check-ins, inadimplentes, disponíveis, seguros, CNH). LLM usa WEEKLY_BRIEFING_SYSTEM_PROMPT com tom executivo. Fallback estruturado se LLM falhar. Briefing diário normal preservado para ter-dom. Cron adicional toda segunda 10:00 UTC (07:00 BRT). Build passou.
+- **Resultado:** ✅ sucesso
+- **Aprendizado registrado:** sim — tabela é weekly_inspections, status 'alugado' para veículos locados
+
 ### 2026-03-12 — Alertas Proativos de Vencimento + Banner Dashboard
 - **Ticket/Diretiva:** TICKET-Proactive-Expiry-Alerts.md
 - **Arquivos alterados:** `supabase/functions/daily-expiry-check/index.ts`, `supabase/migrations/20260312000014_alert_sent_log.sql`, `supabase/migrations/20260312000015_daily_expiry_check_cron.sql`, `execution/frontend/src/pages/Dashboard.jsx`, `execution/frontend/src/components/DashboardV2.jsx`
