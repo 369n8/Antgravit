@@ -19,6 +19,20 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Unificação da Central de Comando
+- **Ticket/Diretiva:** TICKET-Dashboard-Premium.md
+- **Arquivos alterados:** `execution/frontend/src/pages/Central.jsx`, `execution/frontend/src/App.jsx`, `execution/frontend/src/components/Sidebar.jsx`
+- **O que foi feito:** Criada nova página inicial `Central.jsx` unificando Dashboard e Motor IA. Implementadas 3 zonas inteligentes: KPIs dinâmicos (Receita Mês, Ocupação, Inadimplência, Alertas), Prioridades do Dia (algoritmo de ordenação por urgência) e Barra de Ações Rápidas. Roteamento em `App.jsx` atualizado para `/` apontar para Central. Sidebar simplificada (Motor IA virou sub-item/ação dentro da Central).
+- **Resultado:** ✅ sucesso — build pass em 945ms
+- **Aprendizado registrado:** A unificação reduz o "pulo de telas" e foca na tomada de decisão imediata (10 segundos).
+
+### 2026-03-12 — Sincronização de Ambiente & Deploy Forçado
+- **Ticket/Diretiva:** TICKET-corrigir-deploy.md
+- **Arquivos alterados:** `auditorias/log-trabalho.md`, `.netlify/state.json` (interno)
+- **O que foi feito:** Vinculação manual do projeto Netlify (`myfrot-ai`) via CLI. Execução de `npm run build` seguida de `netlify deploy --prod` para alinhar a versão online com a local (commit `518776a`). Limpeza de vestígios da landing page cancelada.
+- **Resultado:** ✅ sucesso — ambiente sincronizado
+- **Aprendizado registrado:** O Netlify estava em deploy manual, exigindo vinculação via CLI para retomar envios forçados.
+
 ### 2026-03-12 — Briefing Estratégico de Segunda-Feira
 - **Ticket/Diretiva:** TICKET-Monday-Briefing.md
 - **Arquivos alterados:** `supabase/functions/daily-ai-report/index.ts`, `supabase/migrations/20260312000016_monday_briefing_cron.sql`

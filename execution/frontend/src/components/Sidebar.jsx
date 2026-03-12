@@ -3,13 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard', icon: IconGrid },
+  { id: 'central', label: 'Central', icon: IconGrid },
   { id: 'vehicles', label: 'Minha Frota', icon: IconCar },
   { id: 'tenants', label: 'Motoristas', icon: IconUsers },
   { id: 'payments', label: 'Pagamentos', icon: IconMoney },
   { id: 'maintenance', label: 'Manutenção', icon: IconWrench },
   { id: 'fines', label: 'Multas & CNH', icon: IconAlert },
-  { id: 'automacao', label: 'Motor IA', icon: IconBrain },
 ];
 
 export default function Sidebar({ page, onNavigate }) {

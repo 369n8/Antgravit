@@ -11,7 +11,7 @@ Nenhuma.
 1. Entrar em `execution/frontend`.
 2. Verificar se o `netlify-cli` está instalado.
 3. Executar o build: `npm run build`.
-4. Realizar o deploy manual forçado: `netlify deploy --prod --dir=dist`.
+4. Realizar o deploy manual forçado: `npx netlify deploy --prod --dir=dist`.
 5. (Ideal) Se possível via CLI, reconectar o site ao repositório `https://github.com/369n8/Antgravit` para habilitar Continuous Deployment.
 
 ## Critério de Aceite

@@ -16,13 +16,14 @@ import SuperAdmin from './pages/SuperAdmin';
 import BlacklistManager from './components/BlacklistManager';
 import Fines from './pages/Fines';
 import AutomacaoIA from './pages/AutomacaoIA';
+import Central from './pages/Central';
 
-const PAGES = { dashboard: Dashboard, vehicles: Vehicles, tenants: Tenants, payments: Payments, maintenance: Maintenance, fines: Fines, automacao: AutomacaoIA };
-const TITLES = { dashboard: 'Dashboard', vehicles: 'Minha Frota', tenants: 'Motoristas', payments: 'Pagamentos', maintenance: 'Manutenção', fines: 'Multas & CNH', automacao: 'Motor IA' };
+const PAGES = { central: Central, dashboard: Dashboard, vehicles: Vehicles, tenants: Tenants, payments: Payments, maintenance: Maintenance, fines: Fines, automacao: AutomacaoIA };
+const TITLES = { central: 'Central de Comando', dashboard: 'Histórico & Dados', vehicles: 'Minha Frota', tenants: 'Motoristas', payments: 'Pagamentos', maintenance: 'Manutenção', fines: 'Multas & CNH', automacao: 'Configurações IA' };
 
 export default function App() {
   const { user, loading } = useAuth();
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState('central');
   const [showBlacklist, setShowBlacklist] = useState(false);
   const [stripeLoading, setStripeLoading] = useState(false);
   const [connectStatus, setConnectStatus] = useState(null);
