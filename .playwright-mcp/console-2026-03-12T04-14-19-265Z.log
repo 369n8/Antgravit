@@ -1,0 +1,2 @@
+[     643ms] Error: VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY são obrigatórios no .env
+    at https://myfrot-ai.netlify.app/assets/index-DdTPxMQ3.js:51:43451

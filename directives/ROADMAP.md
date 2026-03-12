@@ -1,6 +1,15 @@
 # ROADMAP MyFrot.ai
-> Última atualização: 2026-03-11
+> Última atualização: 2026-03-12
 > Critério de priorização: impacto no lock-in do cliente × custo de implementação
+
+---
+
+## FASE 0 — PRÉ-LANÇAMENTO (Agora — antes do 1º cliente pago)
+> Bloqueadores operacionais que impedem o teste real com motoristas.
+
+| Ticket | Justificativa |
+|--------|--------------|
+| **TICKET-PreLaunch-RealTests** | 🔴 CRÍTICO — Configurar Telegram pessoal + teste end-to-end completo com carro e motorista real |
 
 ---
 
@@ -13,6 +22,11 @@
 | **TICKET-ROI-Segregation** | Bug de UX ativo: métricas do Super Admin aparecendo para o frotista, confunde e deseduca o usuário |
 | **TICKET-RESTORE-IA-MANAGER** | Push matinal diário é o maior diferencial de lock-in — cron do daily-ai-report estava faltando (corrigido nesta auditoria) |
 | **TICKET-Weekly-Ops-Fines** | Check-ins semanais (km + óleo + vídeo) já implementados mas precisam ser validados end-to-end com um locatário real |
+| **TICKET-Vehicle-Serial-Numbers** | Número de série do pneu (DOT) e bateria no cadastro — protege o frotista de furto de peças |
+| **TICKET-Checkin-Photo-Required** | Foto obrigatória no check-in + validação de KM — protege o frotista de disputas com motorista |
+| **TICKET-Weekly-Video-Checkin** | Vídeo semanal obrigatório (KM + óleo + estado geral) — frotista vê o carro toda semana sem sair de casa |
+| **TICKET-Proactive-Expiry-Alerts** | Alertas de seguro/IPVA/CNH/bateria vencendo — o frotista nunca é pego de surpresa |
+| **TICKET-Monday-Briefing** | Briefing estratégico toda segunda 07h — lock-in emocional, o frotista não cancela depois de 3 semanas |
 
 ---
 

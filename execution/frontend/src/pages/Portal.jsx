@@ -43,6 +43,9 @@ export default function Portal({ token }) {
     const [tireComparison, setTireComparison] = useState([]);
     const [batteryInfo, setBatteryInfo] = useState(null);
 
+    // Fotos de entrega obrigatórias
+    const [entregaPhotos, setEntregaPhotos] = useState([]);
+
     const handleClearSignature = () => sigCanvas.current.clear();
 
     const handleSaveSignature = async () => {
@@ -149,6 +152,14 @@ export default function Portal({ token }) {
                                 warrantyUntil: vData.battery_warranty_until,
                             });
                         }
+                        // Carregar fotos obrigatórias do check-in de entrega
+                        const { data: photos } = await supabase.from('inspection_photos')
+                            .select('*')
+                            .eq('vehicle_id', vData.id)
+                            .eq('is_required', true)
+                            .order('taken_at', { ascending: false })
+                            .limit(8);
+                        setEntregaPhotos(photos || []);
                     }
                 }
 
@@ -656,6 +667,18 @@ export default function Portal({ token }) {
                             </div>
                         </div>
 
+                        {/* Aviso de fotos obrigatórias (apenas se não tiver fotos de entrega e status for alugado) */}
+                        {entregaPhotos.length === 0 && vehicle?.status === 'alugado' && (
+                            <div style={{ background: '#FFF7ED', borderRadius: 14, padding: '12px 16px', border: '1px solid #FED7AA', marginBottom: 16 }}>
+                                <div style={{ fontWeight: 800, color: '#C2410C', fontSize: 13 }}>
+                                    📸 Para confirmar a saída do veículo, 4 fotos são obrigatórias.
+                                </div>
+                                <div style={{ fontSize: 12, color: '#92400E', marginTop: 4 }}>
+                                    Frente, Traseira, Lateral E e Lateral D protegem você de disputas sobre danos que não foram causados por você.
+                                </div>
+                            </div>
+                        )}
+
                         {/* Comparativo de Peças — Entrega */}
                         {(tireComparison.length > 0 || batteryInfo) && (
                             <div style={{ background: '#FFF', borderRadius: 20, padding: 24, border: '1px solid #F1F5F9', marginBottom: 24 }}>
@@ -694,6 +717,33 @@ export default function Portal({ token }) {
                                         })}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Fotos do Estado de Entrega */}
+                        {entregaPhotos.length > 0 && (
+                            <div style={{ background: '#FFF', borderRadius: 20, padding: 24, border: '1px solid #F1F5F9', marginBottom: 24 }}>
+                                <h3 style={{ fontSize: 16, fontWeight: 900, color: '#102A57', marginBottom: 4 }}>
+                                    📸 Fotos do Estado de Entrega
+                                </h3>
+                                <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+                                    Registradas no momento em que o veículo foi entregue a você.
+                                </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                                    {entregaPhotos.map(p => {
+                                        const labels = { frente: 'Frente', traseira: 'Traseira', lateral_esq: 'Lateral E', lateral_dir: 'Lateral D', dano: 'Dano', interior: 'Interior', outro: 'Outro' };
+                                        return (
+                                            <div key={p.id} style={{ borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
+                                                <img src={p.photo_url} style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />
+                                                {p.position && (
+                                                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(16,42,87,0.75)', color: '#FFF', fontSize: 11, fontWeight: 800, padding: '4px 8px', textAlign: 'center' }}>
+                                                        {labels[p.position] || p.position}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
 

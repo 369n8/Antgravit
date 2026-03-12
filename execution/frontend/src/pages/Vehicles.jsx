@@ -67,6 +67,13 @@ export default function Vehicles() {
   const [batteryData, setBatteryData] = useState({ serial: '', brand: '', ah: '', installedAt: '', warrantyUntil: '' });
   const fileRef = useRef();
 
+  const REQUIRED_PHOTO_KEYS = ['frente', 'traseira', 'lateral_esq', 'lateral_dir'];
+  const REQUIRED_PHOTO_LABELS = { frente: 'Frente', traseira: 'Traseira', lateral_esq: 'Lateral E', lateral_dir: 'Lateral D' };
+  const [requiredPhotos, setRequiredPhotos] = useState({ frente: null, traseira: null, lateral_esq: null, lateral_dir: null });
+  const [kmError, setKmError] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(null);
+  const [pendingPhotoKey, setPendingPhotoKey] = useState(null);
+
   const load = async () => {
     setLoading(true);
     const { data } = await supabase.from('vehicles').select('*').order('created_at', { ascending: false });
@@ -153,6 +160,8 @@ export default function Vehicles() {
     setShowIn(false); setShowOut(false); setSel(null); setCheckinData({ km: '', fuel: '' });
     setTireData({ dianteiro_esq: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, dianteiro_dir: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, traseiro_esq: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, traseiro_dir: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, step: { dot: '', brand: '', condition: 'boa', photoUrl: '' } });
     setBatteryData({ serial: '', brand: '', ah: '', installedAt: '', warrantyUntil: '' });
+    setRequiredPhotos({ frente: null, traseira: null, lateral_esq: null, lateral_dir: null });
+    setKmError(null);
     load();
   };
 
@@ -175,6 +184,25 @@ export default function Vehicles() {
     if (!window.confirm('Excluir esta foto?')) return;
     const { error: err } = await supabase.storage.from(BUCKET).remove([`${sel.id}/${name}`]);
     if (!err) loadPhotos(sel.id);
+  };
+
+  const handleRequiredPhotoUpload = async (file, key) => {
+    if (!file || !sel) return;
+    setPhotoUploading(key);
+    const path = `${sel.id}/checkin_${key}_${Date.now()}_${file.name}`;
+    const { data, error: err } = await supabase.storage.from('inspections').upload(path, file, { upsert: true });
+    if (!err) {
+      const url = supabase.storage.from('inspections').getPublicUrl(path).data.publicUrl;
+      setRequiredPhotos(p => ({ ...p, [key]: url }));
+      await supabase.from('inspection_photos').insert({
+        vehicle_id: sel.id,
+        photo_url: url,
+        position: key,
+        is_required: true,
+        taken_at: new Date().toISOString(),
+      }).select().maybeSingle();
+    }
+    setPhotoUploading(null);
   };
 
   const filtered = rows.filter(r => (r.brand + r.model + r.plate).toLowerCase().includes(search.toLowerCase()));
@@ -425,7 +453,18 @@ export default function Vehicles() {
                     placeholder="Ex: 45000"
                     style={{ ...S.inp, height: 48, borderRadius: 14 }}
                     value={checkinData.km}
-                    onChange={e => setCheckinData(p => ({ ...p, km: e.target.value }))}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setCheckinData(p => ({ ...p, km: val }));
+                      if (val && sel?.current_km) {
+                        const novo = Number(val);
+                        const atual = Number(sel.current_km);
+                        if (novo < atual) setKmError(`KM inválido: não pode ser menor que ${atual.toLocaleString()} km atual`);
+                        else setKmError(null);
+                      } else {
+                        setKmError(null);
+                      }
+                    }}
                   />
                 </div>
                 <div>
@@ -440,6 +479,49 @@ export default function Vehicles() {
                     onChange={e => setCheckinData(p => ({ ...p, fuel: e.target.value }))}
                   />
                 </div>
+              </div>
+            )}
+
+            {showIn && (
+              <div>
+                {/* Fotos obrigatórias no retorno */}
+                <div style={{ textAlign: 'left', marginTop: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#102A57', marginBottom: 4 }}>
+                    📸 Fotos obrigatórias ({Object.values(requiredPhotos).filter(Boolean).length}/4)
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748B', marginBottom: 12 }}>
+                    Frente, Traseira, Lateral E e Lateral D são obrigatórias para confirmar o retorno.
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {REQUIRED_PHOTO_KEYS.map(key => (
+                      <div key={key} style={{ position: 'relative' }}>
+                        <label style={{ fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          {REQUIRED_PHOTO_LABELS[key]} {requiredPhotos[key] ? '✅' : '*'}
+                        </label>
+                        {requiredPhotos[key] ? (
+                          <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', height: 80 }}>
+                            <img src={requiredPhotos[key]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <button onClick={() => setRequiredPhotos(p => ({ ...p, [key]: null }))}
+                              style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, background: 'rgba(239,68,68,0.9)', color: '#FFF', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <label style={{ display: 'flex', height: 80, borderRadius: 10, border: '2px dashed #E2E8F0', background: '#F8FAFF', cursor: 'pointer', alignItems: 'center', justifyContent: 'center' }}>
+                            {photoUploading === key ? (
+                              <span style={{ fontSize: 11, color: '#94A3B8' }}>Enviando...</span>
+                            ) : (
+                              <span style={{ fontSize: 11, color: '#94A3B8' }}>+ Foto</span>
+                            )}
+                            <input type="file" accept="image/*" hidden
+                              onChange={e => e.target.files?.[0] && handleRequiredPhotoUpload(e.target.files[0], key)} />
+                          </label>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {kmError && <div style={{ color: '#EF4444', fontSize: 12, fontWeight: 700, marginTop: 8, textAlign: 'left' }}>{kmError}</div>}
               </div>
             )}
 
@@ -506,7 +588,13 @@ export default function Vehicles() {
             )}
 
             <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-              <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => handleIO(showIn ? 'in' : 'out', showIn ? 'disponível' : 'alugado')} disabled={saving}>{saving ? 'SALVANDO...' : 'CONFIRMAR'}</button>
+              <button
+                style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center', opacity: (saving || (showIn && (!!kmError || Object.values(requiredPhotos).some(p => !p)))) ? 0.5 : 1 }}
+                onClick={() => handleIO(showIn ? 'in' : 'out', showIn ? 'disponível' : 'alugado')}
+                disabled={saving || (showIn && (!!kmError || Object.values(requiredPhotos).some(p => !p)))}
+              >
+                {saving ? 'SALVANDO...' : 'CONFIRMAR'}
+              </button>
               <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => { setShowIn(false); setShowOut(false); setCheckinData({ km: '', fuel: '' }); }}>VOLTAR</button>
             </div>
           </div>

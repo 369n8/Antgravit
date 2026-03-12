@@ -19,6 +19,13 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Foto Obrigatória no Check-in + Validação de KM
+- **Ticket/Diretiva:** TICKET-Checkin-Photo-Required.md
+- **Arquivos alterados:** `execution/frontend/src/pages/Vehicles.jsx`, `execution/frontend/src/pages/Portal.jsx`, `supabase/migrations/20260312000011_inspection_photos_position.sql`
+- **O que foi feito:** Migration adicionou colunas `position` e `is_required` em inspection_photos. Vehicles.jsx: modal de check-in de retorno agora exige 4 fotos obrigatórias (Frente/Traseira/Lateral E/Lateral D) com upload por posição; botão bloqueado até completar; validação de KM impede valores menores que o atual. Portal.jsx: aviso de fotos obrigatórias + seção de comparativo mostrando fotos do estado de entrega. Build passou.
+- **Resultado:** ✅ sucesso
+- **Aprendizado registrado:** sim
+
 ### 2026-03-12 — Tire & Battery Serial Tracking
 - **Ticket/Diretiva:** TICKET-Vehicle-Serial-Numbers.md
 - **Arquivos alterados:** `execution/frontend/src/pages/Vehicles.jsx`, `execution/frontend/src/pages/Portal.jsx`, `supabase/migrations/20260312000010_vehicle_tires.sql`
