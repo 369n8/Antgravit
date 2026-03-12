@@ -30,6 +30,27 @@
 - **Aprendizado registrado:** O join `vehicles!vehicle_id` no Supabase retorna objeto singular (FK). Para vincular veículo→locatário na rentabilidade, usar `tenant.vehicles.id === vehicle.id`.
 
 
+### 2026-03-12 — Atualização de Branding (Novo Logo)
+- **Ticket/Diretiva:** Solicitação direta via Chat
+- **Arquivos alterados:** `execution/frontend/src/components/Sidebar.jsx`, `execution/frontend/src/pages/Login.jsx`, `execution/frontend/index.html`
+- **O que foi feito:** 
+  1. Substituído `/logo.png` por `/logo final.png` no Sidebar.
+  2. Implementado o logo na página de Login (substituindo o título H1).
+  3. Atualizado o favicon e o título do documento (`MyFrot.ai`) no `index.html`.
+- **Resultado:** ✅ sucesso — Identidade visual consolidada.
+- **Aprendizado registrado:** Branding consistente em login/dashboard reforça a percepção premium.
+
+### 2026-03-12 — Restauração da Central de Comando Premium
+- **Ticket/Diretiva:** TICKET-Central-Command-Redesign.md
+- **Arquivos alterados:** `execution/frontend/src/pages/Central.jsx`
+- **O que foi feito:** 
+  1. Identificada reversão acidental da `Central.jsx`.
+  2. Restaurada a arquitetura de 5 zonas (Header Navy, Hero Receita, KPIs H-Scroll, Prioridades Urgentes e Rentabilidade por Carro).
+  3. Lógica de Score da Frota (0-100) re-implementada com pesos corretos.
+  4. Build de produção validado com sucesso (962ms).
+- **Resultado:** ✅ sucesso — Redesign restabelecido.
+- **Aprendizado registrado:** Em ambientes com múltiplos agentes, check-ins de versão frequentes são vitais para evitar regressões visuais.
+
 ### 2026-03-12 — Correção da Navegação Central para Abas da IA
 - **Ticket/Diretiva:** TICKET-corrigir-deploy.md
 - **Arquivos alterados:** `execution/frontend/src/App.jsx`, `execution/frontend/src/pages/Central.jsx`, `execution/frontend/src/pages/AutomacaoIA.jsx`

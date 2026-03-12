@@ -56,7 +56,7 @@ export default function Sidebar({ page, onNavigate }) {
     <>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img src="/logo.png" alt="myfrot.ai" style={{ width: '100%', maxWidth: 180, height: 'auto', objectFit: 'contain', display: 'block' }} />
+          <img src="/logo final.png" alt="myfrot.ai" style={{ width: '100%', maxWidth: 180, height: 'auto', objectFit: 'contain', display: 'block' }} />
         </div>
 
         <nav className="sidebar-nav">

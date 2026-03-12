@@ -40,7 +40,9 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-box">
-        <h1>FrotaApp</h1>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          <img src="/logo final.png" alt="MyFrot.ai" style={{ maxWidth: 220, height: 'auto' }} />
+        </div>
         <p>{mode === 'login' ? 'Entre na sua conta para acessar o painel.' : 'Crie uma conta para começar.'}</p>
 
         <form onSubmit={handleSubmit}>
