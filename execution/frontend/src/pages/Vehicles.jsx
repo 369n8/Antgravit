@@ -56,6 +56,15 @@ export default function Vehicles() {
   const [error, setError] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [checkinData, setCheckinData] = useState({ km: '', fuel: '' });
+  const TIRE_BLANK = { dot: '', brand: '', condition: 'boa', photoUrl: '' };
+  const [tireData, setTireData] = useState({
+    dianteiro_esq: { dot: '', brand: '', condition: 'boa', photoUrl: '' },
+    dianteiro_dir: { dot: '', brand: '', condition: 'boa', photoUrl: '' },
+    traseiro_esq:  { dot: '', brand: '', condition: 'boa', photoUrl: '' },
+    traseiro_dir:  { dot: '', brand: '', condition: 'boa', photoUrl: '' },
+    step:          { dot: '', brand: '', condition: 'boa', photoUrl: '' },
+  });
+  const [batteryData, setBatteryData] = useState({ serial: '', brand: '', ah: '', installedAt: '', warrantyUntil: '' });
   const fileRef = useRef();
 
   const load = async () => {
@@ -89,9 +98,40 @@ export default function Vehicles() {
     setShowEdit(true);
   };
 
+  const saveTiresAndBattery = async (vehicleId) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: veh } = await supabase.from('vehicles').select('client_id').eq('id', vehicleId).single();
+    const tenantId = veh?.client_id;
+
+    await supabase.from('vehicles').update({
+      battery_serial: batteryData.serial || null,
+      battery_brand: batteryData.brand || null,
+      battery_ah: batteryData.ah ? Number(batteryData.ah) : null,
+      battery_installed_at: batteryData.installedAt || null,
+      battery_warranty_until: batteryData.warrantyUntil || null,
+    }).eq('id', vehicleId);
+
+    const tireRows = Object.entries(tireData).map(([pos, t]) => ({
+      vehicle_id: vehicleId,
+      tenant_id: tenantId,
+      position: pos,
+      dot_serial: t.dot || null,
+      brand: t.brand || null,
+      condition: t.condition,
+      registered_by: user?.id,
+    })).filter(r => r.dot_serial || r.brand);
+
+    if (tireRows.length > 0) {
+      await supabase.from('vehicle_tires').upsert(tireRows, { onConflict: 'vehicle_id,position' });
+    }
+  };
+
   const handleIO = async (type, status) => {
     if (!sel) return;
     setSaving(true);
+    if (type === 'out') {
+      await saveTiresAndBattery(sel.id);
+    }
     const updateData = { status };
     if (type === 'in') {
       if (checkinData.km !== '') updateData.current_km = Number(checkinData.km);
@@ -110,7 +150,10 @@ export default function Vehicles() {
       });
     }
     setSaving(false);
-    setShowIn(false); setShowOut(false); setSel(null); setCheckinData({ km: '', fuel: '' }); load();
+    setShowIn(false); setShowOut(false); setSel(null); setCheckinData({ km: '', fuel: '' });
+    setTireData({ dianteiro_esq: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, dianteiro_dir: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, traseiro_esq: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, traseiro_dir: { dot: '', brand: '', condition: 'boa', photoUrl: '' }, step: { dot: '', brand: '', condition: 'boa', photoUrl: '' } });
+    setBatteryData({ serial: '', brand: '', ah: '', installedAt: '', warrantyUntil: '' });
+    load();
   };
 
   const loadPhotos = async (vid) => {
@@ -366,7 +409,7 @@ export default function Vehicles() {
       {/* CHECK-IN / CHECK-OUT RAPID */}
       {(showIn || showOut) && (
         <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && (setShowIn(false) || setShowOut(false))}>
-          <div style={{ ...G.card, width: '100%', maxWidth: 440, padding: 40, textAlign: 'center', border: 'none' }}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 680, padding: 40, textAlign: 'center', border: 'none' }}>
             <div style={{ width: 80, height: 80, borderRadius: 30, background: showIn ? '#F0FDF4' : '#F3F2FF', color: showIn ? '#10B981' : '#5B58EC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
               {showIn ? <ArrowDownRight size={40} /> : <ArrowUpRight size={40} />}
             </div>
@@ -400,7 +443,69 @@ export default function Vehicles() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 12 }}>
+            {showOut && (
+              <div style={{ textAlign: 'left', marginTop: 24 }}>
+                {/* Bateria */}
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16, marginBottom: 16 }}>
+                  <h4 style={{ color: '#102A57', fontWeight: 800, fontSize: 14, marginBottom: 12 }}>🔋 Bateria (opcional mas recomendado)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {[
+                      ['Nº de Série', 'serial', 'text', 'ex: 202408-MR60'],
+                      ['Marca', 'brand', 'text', 'ex: Moura'],
+                      ['Amperagem (Ah)', 'ah', 'number', 'ex: 60'],
+                      ['Instalação', 'installedAt', 'date', ''],
+                      ['Garantia até', 'warrantyUntil', 'date', ''],
+                    ].map(([lbl, key, type, ph]) => (
+                      <div key={key}>
+                        <label style={{ fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>{lbl}</label>
+                        <input type={type} placeholder={ph} style={{ ...S.inp, height: 40, borderRadius: 10, fontSize: 13 }}
+                          value={batteryData[key]} onChange={e => setBatteryData(p => ({ ...p, [key]: e.target.value }))} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pneus */}
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16 }}>
+                  <h4 style={{ color: '#102A57', fontWeight: 800, fontSize: 14, marginBottom: 12 }}>🔴 Pneus — DOT / Série</h4>
+                  {[
+                    ['dianteiro_esq', '↖ Dianteiro Esq'],
+                    ['dianteiro_dir', '↗ Dianteiro Dir'],
+                    ['traseiro_esq', '↙ Traseiro Esq'],
+                    ['traseiro_dir', '↘ Traseiro Dir'],
+                    ['step', '🔧 Step'],
+                  ].map(([pos, lbl]) => (
+                    <div key={pos} style={{ background: '#F8FAFF', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#5B58EC', marginBottom: 8 }}>{lbl}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 8 }}>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DOT / Série</label>
+                          <input placeholder="U2LL LMLR 0823" style={{ ...S.inp, height: 36, borderRadius: 8, fontSize: 12 }}
+                            value={tireData[pos].dot} onChange={e => setTireData(p => ({ ...p, [pos]: { ...p[pos], dot: e.target.value } }))} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Marca/Modelo</label>
+                          <input placeholder="Pirelli P400" style={{ ...S.inp, height: 36, borderRadius: 8, fontSize: 12 }}
+                            value={tireData[pos].brand} onChange={e => setTireData(p => ({ ...p, [pos]: { ...p[pos], brand: e.target.value } }))} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Estado</label>
+                          <select style={{ ...S.inp, height: 36, borderRadius: 8, fontSize: 12 }}
+                            value={tireData[pos].condition} onChange={e => setTireData(p => ({ ...p, [pos]: { ...p[pos], condition: e.target.value } }))}>
+                            <option value="nova">Nova</option>
+                            <option value="boa">Boa</option>
+                            <option value="regular">Regular</option>
+                            <option value="ruim">Ruim</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
               <button style={{ ...G.btn(true), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => handleIO(showIn ? 'in' : 'out', showIn ? 'disponível' : 'alugado')} disabled={saving}>{saving ? 'SALVANDO...' : 'CONFIRMAR'}</button>
               <button style={{ ...G.btn(false), flex: 1, height: 52, justifyContent: 'center' }} onClick={() => { setShowIn(false); setShowOut(false); setCheckinData({ km: '', fuel: '' }); }}>VOLTAR</button>
             </div>

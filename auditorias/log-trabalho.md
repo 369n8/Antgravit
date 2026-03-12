@@ -19,6 +19,27 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Tire & Battery Serial Tracking
+- **Ticket/Diretiva:** TICKET-Vehicle-Serial-Numbers.md
+- **Arquivos alterados:** `execution/frontend/src/pages/Vehicles.jsx`, `execution/frontend/src/pages/Portal.jsx`, `supabase/migrations/20260312000010_vehicle_tires.sql`
+- **O que foi feito:** Migration criada (vehicle_tires + colunas battery_* em vehicles, RLS habilitado). Modal de check-out de Vehicles.jsx recebeu seção "Peças & Segurança" com campos de bateria (série, marca, Ah, instalação, garantia) e 5 pneus (DOT, marca, condição). Portal.jsx exibe comparativo de pneus/bateria registrados na entrega. Build passou.
+- **Resultado:** ✅ sucesso
+- **Aprendizado registrado:** sim
+
+### 2026-03-12 — Análise de Mercado + Novos Tickets de Melhoria
+- **Ticket/Diretiva:** análise espontânea pós-auditoria
+- **Arquivos alterados:** `directives/ROADMAP.md`, `directives/TICKET-PreLaunch-RealTests.md`, `directives/TICKET-Proactive-Expiry-Alerts.md`, `directives/TICKET-Monday-Briefing.md`, `directives/TICKET-Checkin-Photo-Required.md`
+- **O que foi feito:** Leitura completa do projeto. Pesquisa de mercado identificou nicho desatendido (frotistas 3-15 carros para apps). 4 bloqueadores para testes reais identificados. 4 novos tickets criados com foco em bem-estar do frotista: alertas proativos de vencimento, briefing estratégico de segunda-feira, foto obrigatória no check-in e checklist de pré-lançamento.
+- **Resultado:** ✅ Tickets criados, ROADMAP atualizado com Fase 0 (pré-lançamento)
+- **Aprendizado registrado:** sim
+
+### 2026-03-11 — Limpeza de Extensões Irrelevantes
+- **Ticket/Diretiva:** TICKET-limpeza-ambiente.md
+- **Arquivos alterados:** `~/.antigravity/extensions/llvm-vs-code-extensions.vscode-clangd-0.4.0-universal` (removido), `~/.antigravity/extensions/shopify.ruby-lsp-0.10.0-universal` (removido)
+- **O que foi feito:** Extensões `vscode-clangd` e `ruby-lsp` localizadas em `~/.antigravity/extensions/` e removidas via `rm -rf`. O comando `code` não estava disponível no PATH (sem VS Code instalado); Antigravity é o editor do ambiente.
+- **Resultado:** ✅ Ambas extensões removidas. Build passou em 977ms sem erros.
+- **Aprendizado registrado:** Extensões do Antigravity ficam em `~/.antigravity/extensions/`. O CLI `code` não existe neste Mac — usar `rm -rf` direto ou o próprio Antigravity GUI.
+
 ### 2026-03-11 — AUDITORIA COMPLETA E2E — CICLO ENCERRADO
 - **Ticket/Diretiva:** auditoria-2026-03-11.md
 - **Arquivos alterados:** 8 componentes React, 2 migrations SQL, netlify.toml, _redirects, log-trabalho.md, .env

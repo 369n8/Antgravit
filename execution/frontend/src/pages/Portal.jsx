@@ -39,6 +39,10 @@ export default function Portal({ token }) {
     const [inspVideo, setInspVideo] = useState(null);
     const [inspUploading, setInspUploading] = useState(false);
 
+    // Estados de Pneus e Bateria
+    const [tireComparison, setTireComparison] = useState([]);
+    const [batteryInfo, setBatteryInfo] = useState(null);
+
     const handleClearSignature = () => sigCanvas.current.clear();
 
     const handleSaveSignature = async () => {
@@ -132,7 +136,20 @@ export default function Portal({ token }) {
                         .select('*')
                         .eq('id', tData.vehicle_id)
                         .single();
-                    if (vData) setVehicle(vData);
+                    if (vData) {
+                        setVehicle(vData);
+                        // Carregar pneus e bateria do veículo
+                        const { data: tires } = await supabase.from('vehicle_tires').select('*').eq('vehicle_id', vData.id);
+                        setTireComparison(tires || []);
+                        if (vData.battery_serial || vData.battery_brand) {
+                            setBatteryInfo({
+                                serial: vData.battery_serial,
+                                brand: vData.battery_brand,
+                                ah: vData.battery_ah,
+                                warrantyUntil: vData.battery_warranty_until,
+                            });
+                        }
+                    }
                 }
 
                 const { data: pData } = await supabase
@@ -638,6 +655,47 @@ export default function Portal({ token }) {
                                 <p style={{ fontSize: 12, color: '#9CA3AF', margin: '2px 0 0', fontWeight: 500 }}>Envie vídeo 360° + KM atual do veículo</p>
                             </div>
                         </div>
+
+                        {/* Comparativo de Peças — Entrega */}
+                        {(tireComparison.length > 0 || batteryInfo) && (
+                            <div style={{ background: '#FFF', borderRadius: 20, padding: 24, border: '1px solid #F1F5F9', marginBottom: 24 }}>
+                                <h3 style={{ fontSize: 16, fontWeight: 900, color: '#102A57', marginBottom: 16 }}>
+                                    📋 Peças & Segurança — Registrado na Entrega
+                                </h3>
+
+                                {batteryInfo && (
+                                    <div style={{ background: '#F8FAFF', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                                        <div style={{ fontWeight: 800, fontSize: 13, color: '#5B58EC', marginBottom: 10 }}>🔋 Bateria</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+                                            {batteryInfo.serial && <div><span style={{ color: '#94A3B8', fontWeight: 700 }}>Série: </span>{batteryInfo.serial}</div>}
+                                            {batteryInfo.brand && <div><span style={{ color: '#94A3B8', fontWeight: 700 }}>Marca: </span>{batteryInfo.brand}</div>}
+                                            {batteryInfo.ah && <div><span style={{ color: '#94A3B8', fontWeight: 700 }}>Amperagem: </span>{batteryInfo.ah}Ah</div>}
+                                            {batteryInfo.warrantyUntil && <div><span style={{ color: '#94A3B8', fontWeight: 700 }}>Garantia até: </span>{ptDate(batteryInfo.warrantyUntil)}</div>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {tireComparison.length > 0 && (
+                                    <div>
+                                        <div style={{ fontWeight: 800, fontSize: 13, color: '#EF4444', marginBottom: 10 }}>🔴 Pneus</div>
+                                        {tireComparison.map(tire => {
+                                            const labels = { dianteiro_esq: '↖ Dianteiro Esq', dianteiro_dir: '↗ Dianteiro Dir', traseiro_esq: '↙ Traseiro Esq', traseiro_dir: '↘ Traseiro Dir', step: '🔧 Step' };
+                                            return (
+                                                <div key={tire.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
+                                                    <span style={{ fontWeight: 700, color: '#102A57' }}>{labels[tire.position] || tire.position}</span>
+                                                    <span style={{ color: '#64748B' }}>{tire.dot_serial || '—'}</span>
+                                                    <span style={{ color: '#64748B' }}>{tire.brand || '—'}</span>
+                                                    <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 800,
+                                                        background: tire.condition === 'ruim' ? '#FFF1F1' : tire.condition === 'regular' ? '#FFF7ED' : '#F0FDF4',
+                                                        color: tire.condition === 'ruim' ? '#EF4444' : tire.condition === 'regular' ? '#F97316' : '#10B981'
+                                                    }}>{tire.condition}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Histórico de vistorias */}
                         {inspections.length > 0 && (
