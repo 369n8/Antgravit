@@ -19,6 +19,28 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Central de Comando Redesign — 5 Zonas + Lucro por Carro
+- **Ticket/Diretiva:** TICKET-Central-Command-Redesign.md
+- **Arquivos alterados:** `execution/frontend/src/pages/Central.jsx`, `execution/frontend/src/pages/AutomacaoIA.jsx`
+- **O que foi feito:**
+  1. **Central.jsx** reescrita com 5 zonas: (1) Header com saudação personalizada (Bom dia/tarde/noite, Willy) + data + score da frota 0-100 com barra colorida (verde/laranja/vermelho). (2) Hero card Receita do Mês com barra de progresso % e comparação mês anterior. (3) 4 KPIs secundários em scroll horizontal (Ocupação, Em atraso, Próximos 7d, Top motorista). (4) Prioridades com borda esquerda colorida por severidade e valor em risco destacado. (5) Rentabilidade por Carro com barras horizontais ordenadas por lucro estimado (receita − manutenção − multas).
+  2. **AutomacaoIA.jsx**: removidos os 4 cards financeiros duplicados (Receita Semanal, Receita Mensal, Projeção Anual, Inadimplência). Título renomeado de "Motor IA + Gestão Semanal" para "Configurações IA". Removidos imports não utilizados (DollarSign, TrendingUp, BarChart3).
+  3. Score da frota calculado com pesos: Ocupação 35% + Adimplência 35% + Documentação 20% + Check-ins 10%.
+- **Resultado:** ✅ sucesso — build pass em 877ms
+- **Aprendizado registrado:** O join `vehicles!vehicle_id` no Supabase retorna objeto singular (FK). Para vincular veículo→locatário na rentabilidade, usar `tenant.vehicles.id === vehicle.id`.
+
+
+### 2026-03-12 — Correção da Navegação Central para Abas da IA
+- **Ticket/Diretiva:** TICKET-corrigir-deploy.md
+- **Arquivos alterados:** `execution/frontend/src/App.jsx`, `execution/frontend/src/pages/Central.jsx`, `execution/frontend/src/pages/AutomacaoIA.jsx`
+- **O que foi feito:** 
+  1. Habilitada navegação paramétrica no `App.jsx` via prop `params`.
+  2. Atualizados botões do rodapé na `Central.jsx` para passar a aba alvo (`video`, `bot`, `motor`).
+  3. Implementado sistema de abas na `AutomacaoIA.jsx` com leitura inicial e sincronização de `params.tab`.
+  4. Corrigidos erros de sintaxe JSX e removidos estados/funções órfãs (`savingChat`, `handleSaveChat`).
+- **Resultado:** ✅ sucesso — navegação validada via E2E/Playwright e Build pass.
+- **Aprendizado registrado:** A decomposição de páginas complexas em abas melhora a performance de render e a clareza para o usuário frotista.
+
 ### 2026-03-12 — Unificação da Central de Comando
 - **Ticket/Diretiva:** TICKET-Dashboard-Premium.md
 - **Arquivos alterados:** `execution/frontend/src/pages/Central.jsx`, `execution/frontend/src/App.jsx`, `execution/frontend/src/components/Sidebar.jsx`

@@ -18,8 +18,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { S, Sec, ptDate, fmt, weekRange, monthRange } from '../lib/shared';
 import {
-  Brain, Zap, Calendar, TrendingUp, Car, CheckCircle2, AlertCircle, Clock,
-  Send, MessageCircle, Search, Plus, X, DollarSign, BarChart3, Play,
+  Brain, Zap, Calendar, Car, CheckCircle2, AlertCircle, Clock,
+  Send, MessageCircle, Search, Plus, X, Play, Video,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -94,11 +94,19 @@ function oilBadge(level) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function AutomacaoIA() {
+export default function AutomacaoIA({ params }) {
+  // ── Tab state ──
+  const [activeTab, setActiveTab] = useState(params?.tab || 'motor');
+
   // ── Auth / base ──
   const [user,    setUser]    = useState(null);
   const [client,  setClient]  = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Sync tab if params change
+  useEffect(() => {
+    if (params?.tab) setActiveTab(params.tab);
+  }, [params]);
 
   // ── Fines scanner state ──
   const [settings,     setSettings]     = useState(null);
@@ -114,7 +122,6 @@ export default function AutomacaoIA() {
   const [sendResult,         setSendResult]         = useState(null);
   const [chatIdInput,        setChatIdInput]        = useState('');
   const [botTokenInput,      setBotTokenInput]      = useState('');
-  const [savingChat,         setSavingChat]         = useState(false);
   const [registeringWebhook, setRegisteringWebhook] = useState(false);
   const [webhookResult,      setWebhookResult]      = useState(null);
 
@@ -302,18 +309,7 @@ export default function AutomacaoIA() {
     load();
   }
 
-  async function handleSaveChat() {
-    setSavingChat(true);
-    const { data: { user: u } } = await supabase.auth.getUser();
-    const updates = {
-      telegram_chat_id:  chatIdInput.trim() || null,
-      telegram_bot_token: botTokenInput.trim() || null,
-    };
-    const { error } = await supabase.from('clients').update(updates).eq('id', u.id);
-    setSavingChat(false);
-    if (error) { alert('Erro: ' + error.message); return; }
-    setClient(prev => ({ ...prev, ...updates }));
-  }
+
 
   async function handleRegisterWebhook() {
     const token = botTokenInput.trim();
@@ -495,7 +491,7 @@ export default function AutomacaoIA() {
           </div>
           <div>
             <div style={{ fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
-              Motor IA + Gestão Semanal
+              Configurações IA
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 4, fontWeight: 500 }}>
               {botConnected
@@ -531,47 +527,45 @@ export default function AutomacaoIA() {
           SECTION 2 — Gestão Semanal
           ══════════════════════════════════════════════════════════════ */}
 
-      {/* KPIs financeiros */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      {/* ── Tabs Navigation ── */}
+      <div style={{ marginBottom: 32, display: 'flex', gap: 12, borderBottom: '1px solid var(--bg)', paddingBottom: 16 }}>
         {[
-          { icon: <DollarSign size={18} color={VIOLET} />, label: 'Receita Semanal',  value: `R$ ${fmt(financeiro.weekRev)}`,  bg: `${VIOLET}12`, border: `${VIOLET}30` },
-          { icon: <BarChart3  size={18} color={NAVY}   />, label: 'Receita Mensal',   value: `R$ ${fmt(financeiro.monthRev)}`, bg: `${NAVY}12`,   border: `${NAVY}30`   },
-          { icon: <TrendingUp size={18} color='#059669'/>, label: 'Projeção Anual',   value: `R$ ${fmt(financeiro.yearProj)}`, bg: '#05966912',   border: '#05966930'   },
-          { icon: <AlertCircle size={18} color='#DC2626'/>, label: 'Inadimplência',  value: `R$ ${fmt(financeiro.overdue)}`,  bg: '#DC262612',   border: '#DC262630'   },
-        ].map((kpi, i) => (
-          <div key={i} style={{
-            ...S.card,
-            background: kpi.bg, border: `1px solid ${kpi.border}`,
-            display: 'flex', flexDirection: 'column', gap: 10,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {kpi.icon}
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                {kpi.label}
-              </span>
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.5px' }}>
-              {kpi.value}
-            </div>
-          </div>
+          { id: 'video', label: '🎥 VISTORIAS & VÍDEOS', icon: Video },
+          { id: 'bot', label: '🤖 BOT TELEGRAM', icon: MessageCircle },
+          { id: 'motor', label: '⚙️ MOTOR DE MULTAS', icon: Zap }
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            style={{
+              padding: '12px 24px', borderRadius: '14px', border: 'none',
+              background: activeTab === t.id ? VIOLET : 'var(--bg)',
+              color: activeTab === t.id ? '#FFF' : 'var(--text)',
+              fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+              transition: 'all 0.2s',
+            }}
+          >
+            <t.icon size={16} /> {t.label}
+          </button>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 28 }}>
-
-        {/* ── Agenda Semanal de Pagamentos ── */}
-        <div style={S.card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${VIOLET}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Calendar size={18} color={VIOLET} />
+      {activeTab === 'video' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 28 }}>
+            {/* ── Agenda Semanal de Pagamentos ── */}
+            <div style={S.card}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${VIOLET}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Calendar size={18} color={VIOLET} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Agenda da Semana</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>Semana de {weekStartFmt}</div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Agenda da Semana</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>Semana de {weekStartFmt}</div>
-              </div>
-            </div>
-          </div>
 
           {Object.keys(weeklyAgenda).length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>
@@ -775,23 +769,21 @@ export default function AutomacaoIA() {
           )}
         </div>
       </div>
+    </>
+  )}
 
       {/* ══════════════════════════════════════════════════════════════
-          SECTION 3 — Motor IA (Telegram, Automações, Fines Scanner)
+          BOT & MOTOR SECTION
           ══════════════════════════════════════════════════════════════ */}
+      
+      {(activeTab === 'bot' || activeTab === 'motor') && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: 6, borderBottom: '2px solid var(--bg)', marginBottom: 20 }}>
-          — Motor de IA
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-
-        {/* ── Coluna Esquerda ─────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Conexão Telegram — Bot Pessoal do Dono */}
+          {/* ── Coluna Esquerda: BOT ─────────────────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {activeTab === 'bot' && (
+              <>
+                {/* Conexão Telegram — Bot Pessoal do Dono */}
           <div style={S.card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: botConnected ? '#DCFCE7' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -889,86 +881,95 @@ export default function AutomacaoIA() {
             )}
           </div>
 
-          {/* Log de Atividades da IA */}
-          <div style={S.card}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <Zap size={18} color={VIOLET} />
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Log de Operações da IA</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {aiLogs.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '10px 0' }}>
-                  Nenhuma atividade recente registrada pelo motor.
-                </div>
-              ) : aiLogs.map((l, i) => (
-                <div key={i} style={{ display: 'flex', gap: 12, position: 'relative' }}>
-                  {i < aiLogs.length - 1 && (
-                    <div style={{ position: 'absolute', left: 13, top: 22, bottom: -10, width: 2, background: 'var(--bg)' }} />
-                  )}
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, zIndex: 1 }}>
-                    {l.icon}
+              </>
+            )}
+            
+            {activeTab === 'motor' && (
+              <>
+                {/* Log de Atividades da IA */}
+                <div style={S.card}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                    <Zap size={18} color={VIOLET} />
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Log de Operações da IA</div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{l.title}</div>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                        {new Date(l.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {aiLogs.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '10px 0' }}>
+                        Nenhuma atividade recente registrada pelo motor.
                       </div>
+                    ) : aiLogs.map((l, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 12, position: 'relative' }}>
+                        {i < aiLogs.length - 1 && (
+                          <div style={{ position: 'absolute', left: 13, top: 22, bottom: -10, width: 2, background: 'var(--bg)' }} />
+                        )}
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, zIndex: 1 }}>
+                          {l.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{l.title}</div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                              {new Date(l.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.3 }}>{l.detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Agenda de Automações */}
+                <div style={S.card}>
+                  <Sec t="— Agenda de Automações" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {AUTOMATIONS.map((a, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: a.bg, borderRadius: 12, border: `1px solid ${a.color}22` }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                          {a.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>{a.title}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>{a.desc}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: a.color }}>
+                            <Clock size={10} /> {a.time}
+                          </div>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: settings?.scan_enabled !== false ? '#4AC878' : '#9CA3AF' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Coluna Direita ───────────────────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {activeTab === 'bot' && (
+              <div style={S.card}>
+                <Sec t="— Comandos do Gerente (Telegram do Dono)" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {BOT_COMMANDS.map((c, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
+                      <code style={{ fontSize: 12, fontWeight: 800, color: NAVY, background: `${NAVY}12`, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {c.cmd}
+                      </code>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{c.desc}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.3 }}>{l.detail}</div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Agenda de Automações */}
-          <div style={S.card}>
-            <Sec t="— Agenda de Automações" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {AUTOMATIONS.map((a, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: a.bg, borderRadius: 12, border: `1px solid ${a.color}22` }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                    {a.icon}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>{a.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>{a.desc}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: a.color }}>
-                      <Clock size={10} /> {a.time}
-                    </div>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: settings?.scan_enabled !== false ? '#4AC878' : '#9CA3AF' }} />
-                  </div>
+                <div style={{ marginTop: 12, fontSize: 11, color: 'var(--muted)', padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
+                  💡 Envie mensagem em linguagem natural para o bot e ele responderá com dados reais da sua frota. O Telegram é exclusivo para o gestor.
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
 
-          {/* Comandos do Bot — APENAS PARA O DONO */}
-          <div style={S.card}>
-            <Sec t="— Comandos do Gerente (Telegram do Dono)" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {BOT_COMMANDS.map((c, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
-                  <code style={{ fontSize: 12, fontWeight: 800, color: NAVY, background: `${NAVY}12`, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {c.cmd}
-                  </code>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{c.desc}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--muted)', padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
-              💡 Envie mensagem em linguagem natural para o bot e ele responderá com dados reais da sua frota. O Telegram é exclusivo para o gestor.
-            </div>
-          </div>
-        </div>
-
-        {/* ── Coluna Direita ───────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Motor de Captura de Multas */}
+            {activeTab === 'motor' && (
+              <>
+                {/* Motor de Captura de Multas */}
           <div style={S.card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: '#FAF5FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1095,8 +1096,11 @@ export default function AutomacaoIA() {
               </div>
             </div>
           )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════
           MODAL — Registrar Check-in Semanal
