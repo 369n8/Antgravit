@@ -19,6 +19,13 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Alertas Proativos de Vencimento + Banner Dashboard
+- **Ticket/Diretiva:** TICKET-Proactive-Expiry-Alerts.md
+- **Arquivos alterados:** `supabase/functions/daily-expiry-check/index.ts`, `supabase/migrations/20260312000014_alert_sent_log.sql`, `supabase/migrations/20260312000015_daily_expiry_check_cron.sql`, `execution/frontend/src/pages/Dashboard.jsx`, `execution/frontend/src/components/DashboardV2.jsx`
+- **O que foi feito:** Migration criou alert_sent_log (dedup de alertas). Edge Function daily-expiry-check cobre: seguro (<30d), IPVA (mês seguinte), CNH (<15d), garantia bateria (<30d) — sem spam via log. Cron 07:30 BRT. Dashboard.jsx busca vencimentos <7 dias. DashboardV2.jsx exibe banner vermelho com lista de itens críticos. Build passou.
+- **Resultado:** ✅ sucesso
+- **Aprendizado registrado:** sim — vehicles usa docs_seguro/docs_ipva, tenants usa cnh_expiry (não cnh_validade)
+
 ### 2026-03-12 — Vídeo Semanal Obrigatório + Alertas de Prazo
 - **Ticket/Diretiva:** TICKET-Weekly-Video-Checkin.md
 - **Arquivos alterados:** `execution/frontend/src/pages/Portal.jsx`, `execution/frontend/src/pages/Vehicles.jsx`, `supabase/functions/check-weekly-video-deadline/index.ts`, `supabase/migrations/20260312000012_weekly_inspections_video.sql`, `supabase/migrations/20260312000013_weekly_video_deadline_cron.sql`

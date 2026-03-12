@@ -15,6 +15,7 @@ export default function DashboardPage({ onNavigate }) {
   const [fleetAlerts, setFleetAlerts] = useState({ insurance: [], fines: [] });
   const [monthlyData, setMonthlyData] = useState([]);
   const [overdueInvoices, setOverdueInvoices] = useState([]);
+  const [criticalExpiries, setCriticalExpiries] = useState([]);
 
   const loadInvoices = async () => {
     const now = new Date();
@@ -104,6 +105,34 @@ export default function DashboardPage({ onNavigate }) {
       setOverdueInvoices(ovRes.data ?? []);
       setAllActiveTenants(atRes.data ?? []);
       setPendingInspections(wiRes.data ?? []);
+
+      // Vencimentos críticos (<= 7 dias) para banner
+      const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      const criticalList = [];
+
+      const { data: critVehs } = await supabase.from('vehicles')
+        .select('id, plate, model, brand, docs_seguro, docs_ipva')
+        .or(`docs_seguro.lte.${in7},docs_ipva.lte.${in7}`);
+
+      for (const v of critVehs ?? []) {
+        if (v.docs_seguro && v.docs_seguro <= in7 && v.docs_seguro >= today)
+          criticalList.push({ type: 'seguro', label: `Seguro: ${v.brand} ${v.model} (${v.plate})`, date: v.docs_seguro });
+        if (v.docs_ipva && v.docs_ipva <= in7 && v.docs_ipva >= today)
+          criticalList.push({ type: 'ipva', label: `IPVA: ${v.brand} ${v.model} (${v.plate})`, date: v.docs_ipva });
+      }
+
+      const { data: critTenants } = await supabase.from('tenants')
+        .select('id, name, cnh_expiry')
+        .eq('status', 'ativo')
+        .gte('cnh_expiry', today)
+        .lte('cnh_expiry', in7);
+
+      for (const t of critTenants ?? []) {
+        if (t.cnh_expiry)
+          criticalList.push({ type: 'cnh', label: `CNH: ${t.name}`, date: t.cnh_expiry });
+      }
+
+      setCriticalExpiries(criticalList);
       setLoading(false);
     }
     load();
@@ -124,6 +153,7 @@ export default function DashboardPage({ onNavigate }) {
         overdueInvoices={overdueInvoices}
         allActiveTenants={allActiveTenants}
         pendingInspections={pendingInspections}
+        criticalExpiries={criticalExpiries}
         onNavigate={onNavigate}
       />
     </div>

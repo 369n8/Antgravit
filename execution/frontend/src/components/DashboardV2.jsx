@@ -43,6 +43,7 @@ export default function DashboardV2({
     overdueInvoices = [],
     allActiveTenants = [],
     pendingInspections = [],
+    criticalExpiries = [],
     onNavigate
 }) {
 
@@ -60,6 +61,31 @@ export default function DashboardV2({
 
     return (
         <div style={{ padding: '20px 0', fontFamily: 'Helvetica, sans-serif' }}>
+
+            {/* Banner de vencimentos críticos */}
+            {criticalExpiries.length > 0 && (
+              <div style={{
+                background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 12,
+                padding: '12px 20px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 12
+              }}>
+                <span style={{ fontSize: 20 }}>🚨</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#DC2626', fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
+                    {criticalExpiries.length} vencimento{criticalExpiries.length > 1 ? 's' : ''} crítico{criticalExpiries.length > 1 ? 's' : ''} nos próximos 7 dias
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {criticalExpiries.map((item, i) => (
+                      <span key={i} style={{
+                        background: '#FCA5A5', color: '#7F1D1D', fontSize: 11, fontWeight: 700,
+                        padding: '2px 8px', borderRadius: 6
+                      }}>
+                        {item.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── LUNARA INTELLIGENCE HERO ── */}
             <div style={{ ...G.hero, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
