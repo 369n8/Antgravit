@@ -55,6 +55,9 @@ export default function Vehicles() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [showInspections, setShowInspections] = useState(false);
+  const [inspList, setInspList] = useState([]);
+  const [inspLoading, setInspLoading] = useState(false);
   const [checkinData, setCheckinData] = useState({ km: '', fuel: '' });
   const TIRE_BLANK = { dot: '', brand: '', condition: 'boa', photoUrl: '' };
   const [tireData, setTireData] = useState({
@@ -205,6 +208,28 @@ export default function Vehicles() {
     setPhotoUploading(null);
   };
 
+  const loadInspections = async () => {
+    setInspLoading(true);
+    const { data } = await supabase
+      .from('weekly_inspections')
+      .select('*, tenants(name), vehicles(plate, model)')
+      .order('created_at', { ascending: false })
+      .limit(20);
+    setInspList(data || []);
+    setInspLoading(false);
+  };
+
+  const approveInspection = async (id, approved) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('weekly_inspections').update({
+      video_approved: approved,
+      status: approved ? 'approved' : 'rejected',
+      approved_by: user?.id,
+      approved_at: new Date().toISOString(),
+    }).eq('id', id);
+    loadInspections();
+  };
+
   const filtered = rows.filter(r => (r.brand + r.model + r.plate).toLowerCase().includes(search.toLowerCase()));
 
   if (loading) return <div className="loading"><div className="spinner" /> Sincronizando frota...</div>;
@@ -229,6 +254,10 @@ export default function Vehicles() {
 
         <button style={{ ...G.btn(true), marginTop: 24, height: 52, padding: '0 32px' }} onClick={() => setShowAdd(true)}>
           <Plus size={20} /> ADICIONAR VEÍCULO
+        </button>
+        <button style={{ ...G.btn(false), marginTop: 12, height: 44, padding: '0 24px', fontSize: 13 }}
+          onClick={() => { setShowInspections(true); loadInspections(); }}>
+          📹 Vistorias Semanais
         </button>
       </div>
 
@@ -608,6 +637,75 @@ export default function Vehicles() {
             <X size={40} />
           </button>
           <img src={lightbox} style={{ maxWidth: '90%', maxHeight: '85vh', borderRadius: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }} />
+        </div>
+      )}
+
+      {/* MODAL VISTORIAS SEMANAIS */}
+      {showInspections && (
+        <div style={{ ...S.ovl, backdropFilter: 'blur(12px)' }} onClick={e => e.target === e.currentTarget && setShowInspections(false)}>
+          <div style={{ ...G.card, width: '100%', maxWidth: 720, maxHeight: '85vh', overflowY: 'auto', padding: 32, border: 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h3 style={{ fontSize: 22, fontWeight: 900, color: '#102A57', margin: 0 }}>📹 Vistorias Semanais</h3>
+              <button onClick={() => setShowInspections(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={24} /></button>
+            </div>
+
+            {inspLoading && <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>Carregando...</div>}
+
+            {!inspLoading && inspList.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8', fontSize: 14 }}>Nenhuma vistoria enviada ainda.</div>
+            )}
+
+            {inspList.map(insp => {
+              const statusColor = insp.status === 'approved' ? '#10B981' : insp.status === 'rejected' ? '#EF4444' : '#F59E0B';
+              const statusLabel = insp.status === 'approved' ? 'Aprovada' : insp.status === 'rejected' ? 'Rejeitada' : 'Pendente';
+              const oilColors = { ok: '#10B981', baixo: '#F59E0B', trocar: '#EF4444' };
+              return (
+                <div key={insp.id} style={{ background: '#F8FAFF', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#102A57' }}>{insp.tenants?.name || 'Motorista'}</div>
+                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                        {insp.vehicles?.plate} · {new Date(insp.created_at).toLocaleDateString('pt-BR')}
+                        {insp.current_km && ` · ${insp.current_km.toLocaleString('pt-BR')} km`}
+                      </div>
+                    </div>
+                    <span style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 800, background: statusColor + '20', color: statusColor }}>{statusLabel}</span>
+                  </div>
+
+                  {insp.oil_level && (
+                    <div style={{ marginBottom: 12, fontSize: 12, fontWeight: 700, color: oilColors[insp.oil_level] || '#64748B' }}>
+                      🛢️ Óleo: {insp.oil_level === 'ok' ? 'OK' : insp.oil_level === 'baixo' ? 'Baixo — precisa completar' : 'TROCAR URGENTE'}
+                    </div>
+                  )}
+
+                  {insp.notes && (
+                    <div style={{ fontSize: 12, color: '#64748B', background: '#FFF', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                      💬 {insp.notes}
+                    </div>
+                  )}
+
+                  {insp.video_url && (
+                    <div style={{ marginBottom: 12 }}>
+                      <video src={insp.video_url} controls style={{ width: '100%', borderRadius: 10, maxHeight: 300, background: '#000' }} />
+                    </div>
+                  )}
+
+                  {insp.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => approveInspection(insp.id, true)}
+                        style={{ flex: 1, padding: '10px', borderRadius: 12, border: 'none', background: '#F0FDF4', color: '#16A34A', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                        ✅ Aprovado — sem problemas
+                      </button>
+                      <button onClick={() => approveInspection(insp.id, false)}
+                        style={{ flex: 1, padding: '10px', borderRadius: 12, border: 'none', background: '#FEF2F2', color: '#DC2626', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                        ⚠️ Tem algo a verificar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

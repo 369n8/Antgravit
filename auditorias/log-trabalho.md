@@ -19,6 +19,13 @@
 
 ## HISTORICO
 
+### 2026-03-12 — Vídeo Semanal Obrigatório + Alertas de Prazo
+- **Ticket/Diretiva:** TICKET-Weekly-Video-Checkin.md
+- **Arquivos alterados:** `execution/frontend/src/pages/Portal.jsx`, `execution/frontend/src/pages/Vehicles.jsx`, `supabase/functions/check-weekly-video-deadline/index.ts`, `supabase/migrations/20260312000012_weekly_inspections_video.sql`, `supabase/migrations/20260312000013_weekly_video_deadline_cron.sql`
+- **O que foi feito:** Migration adicionou oil_level, video_path, video_approved em weekly_inspections + bucket weekly-videos. Portal.jsx: checklist orientativo, campo de nível de óleo obrigatório (3 botões), validação de tamanho 200MB, botão Enviar bloqueado sem KM+Óleo+Vídeo. Vehicles.jsx: botão "Vistorias Semanais" + modal com player de vídeo inline + aprovação/rejeição. Edge Function check-weekly-video-deadline criada com cron segunda 09h BRT. Build passou.
+- **Resultado:** ✅ sucesso
+- **Aprendizado registrado:** sim
+
 ### 2026-03-12 — Foto Obrigatória no Check-in + Validação de KM
 - **Ticket/Diretiva:** TICKET-Checkin-Photo-Required.md
 - **Arquivos alterados:** `execution/frontend/src/pages/Vehicles.jsx`, `execution/frontend/src/pages/Portal.jsx`, `supabase/migrations/20260312000011_inspection_photos_position.sql`

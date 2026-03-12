@@ -38,6 +38,8 @@ export default function Portal({ token }) {
     const [inspKm, setInspKm] = useState('');
     const [inspVideo, setInspVideo] = useState(null);
     const [inspUploading, setInspUploading] = useState(false);
+    const [inspOilLevel, setInspOilLevel] = useState('');
+    const [inspNotes, setInspNotes] = useState('');
 
     // Estados de Pneus e Bateria
     const [tireComparison, setTireComparison] = useState([]);
@@ -198,40 +200,53 @@ export default function Portal({ token }) {
 
     const handleInspectionSubmit = async () => {
         if (!inspKm || Number(inspKm) <= 0) { alert('Informe a KM atual do veículo.'); return; }
-        if (!inspVideo) { alert('Selecione o vídeo da vistoria.'); return; }
+        if (!inspOilLevel) { alert('Informe o nível do óleo.'); return; }
+        if (!inspVideo) { alert('O vídeo é obrigatório para enviar a vistoria.'); return; }
+        if (inspVideo.size > 200 * 1024 * 1024) { alert('Vídeo muito grande. Máximo: 200MB'); return; }
 
         setInspUploading(true);
         try {
             const ext = inspVideo.name.split('.').pop();
-            const fileName = `${tenant.id}_insp_${Date.now()}.${ext}`;
+            const weekStart = (() => {
+                const d = new Date();
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                return new Date(d.setDate(diff)).toISOString().slice(0, 10);
+            })();
+            const fileName = `${tenant.id}/${tenant.vehicle_id || 'no-vehicle'}/${weekStart}.${ext}`;
 
             const { error: upErr } = await supabase.storage
-                .from('inspections')
-                .upload(fileName, inspVideo, { contentType: inspVideo.type, upsert: false });
+                .from('weekly-videos')
+                .upload(fileName, inspVideo, { contentType: inspVideo.type, upsert: true });
 
             if (upErr) throw new Error('Falha no upload: ' + upErr.message);
 
-            const { data: urlData } = supabase.storage.from('inspections').getPublicUrl(fileName);
+            const { data: urlData } = supabase.storage.from('weekly-videos').getPublicUrl(fileName);
 
             const { error: dbErr } = await supabase.from('weekly_inspections').insert({
                 tenant_id: tenant.id,
                 vehicle_id: tenant.vehicle_id || null,
                 video_url: urlData.publicUrl,
+                video_path: fileName,
                 current_km: Number(inspKm),
+                oil_level: inspOilLevel,
+                notes: inspNotes || null,
+                week_start: weekStart,
                 status: 'pending',
             });
 
             if (dbErr) throw dbErr;
 
-            alert('Vistoria enviada com sucesso! Aguarde aprovação do gestor.');
+            alert('Vistoria enviada! Aguarde aprovação do gestor.');
             setInspKm('');
             setInspVideo(null);
+            setInspOilLevel('');
+            setInspNotes('');
 
-            // Reload inspections
             const { data: fresh } = await supabase
                 .from('weekly_inspections')
                 .select('*')
-                .eq('tenant_id', tenant.id)
+                .eq('tenant_id', token)
                 .order('created_at', { ascending: false })
                 .limit(5);
             setInspections(fresh || []);
@@ -776,10 +791,26 @@ export default function Portal({ token }) {
 
                         {/* Form de nova vistoria */}
                         <div style={{ background: '#F6F6F4', borderRadius: 20, padding: '20px' }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 14 }}>Enviar Nova Vistoria</div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 4 }}>📹 Vistoria Semanal</div>
+                            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 16 }}>Envie até domingo 23:59. Vídeo obrigatório.</div>
 
+                            {/* Checklist orientativo */}
+                            <div style={{ background: '#FFF', borderRadius: 12, padding: '12px 14px', marginBottom: 16, border: '1px solid #E5E7EB' }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: '#374151', marginBottom: 8, textTransform: 'uppercase' }}>O vídeo deve mostrar:</div>
+                                {[
+                                    '📊 Painel com KM visível no odômetro',
+                                    '🛢️ Vareta de óleo fora, nível legível',
+                                    '🚗 Volta completa pelo carro (frente, laterais, traseira)'
+                                ].map((item, i) => (
+                                    <div key={i} style={{ fontSize: 12, color: '#6B7280', padding: '4px 0', borderBottom: i < 2 ? '1px solid #F3F4F6' : 'none' }}>
+                                        {item}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* KM */}
                             <div style={{ marginBottom: 12 }}>
-                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>KM Atual do Veículo</div>
+                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>KM Atual *</div>
                                 <input
                                     type="number"
                                     placeholder="Ex: 85400"
@@ -789,25 +820,59 @@ export default function Portal({ token }) {
                                 />
                             </div>
 
-                            <div style={{ marginBottom: 16 }}>
-                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Vídeo do Veículo (360°)</div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFF', border: '1.5px dashed #D1D5DB', borderRadius: 12, padding: '14px 16px', cursor: 'pointer' }}>
-                                    <Upload size={18} color="#9CA3AF" />
-                                    <span style={{ fontSize: 13, color: inspVideo ? '#111827' : '#9CA3AF', fontWeight: inspVideo ? 600 : 500 }}>
-                                        {inspVideo ? inspVideo.name : 'Selecionar vídeo...'}
+                            {/* Nível do Óleo */}
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Nível do Óleo *</div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {[['ok', '✅ OK', '#F0FDF4', '#16A34A'], ['baixo', '⚠️ Baixo', '#FFF7ED', '#D97706'], ['trocar', '🔴 Trocar', '#FEF2F2', '#DC2626']].map(([val, lbl, bg, color]) => (
+                                        <button key={val} onClick={() => setInspOilLevel(val)}
+                                            style={{ flex: 1, padding: '10px 6px', borderRadius: 10, border: inspOilLevel === val ? `2px solid ${color}` : '2px solid #E5E7EB',
+                                                background: inspOilLevel === val ? bg : '#FFF', color: inspOilLevel === val ? color : '#9CA3AF',
+                                                fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                            {lbl}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Vídeo */}
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Vídeo (máx 200MB) *</div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFF', border: inspVideo ? '1.5px solid #10B981' : '1.5px dashed #D1D5DB', borderRadius: 12, padding: '14px 16px', cursor: 'pointer' }}>
+                                    <Video size={18} color={inspVideo ? '#10B981' : '#9CA3AF'} />
+                                    <span style={{ fontSize: 13, color: inspVideo ? '#111827' : '#9CA3AF', fontWeight: inspVideo ? 600 : 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {inspVideo ? inspVideo.name : 'Selecionar vídeo (MP4, MOV)...'}
                                     </span>
+                                    {inspVideo && <span style={{ fontSize: 11, color: '#6B7280' }}>{(inspVideo.size / 1024 / 1024).toFixed(1)}MB</span>}
                                     <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => setInspVideo(e.target.files?.[0] || null)} />
                                 </label>
                             </div>
 
+                            {/* Observações */}
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Observações (opcional)</div>
+                                <textarea
+                                    placeholder="Ex: Barulho no freio, risco novo na lateral..."
+                                    value={inspNotes}
+                                    onChange={e => setInspNotes(e.target.value)}
+                                    rows={2}
+                                    style={{ width: '100%', background: '#FFF', border: '1.5px solid #EBEBEB', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit' }}
+                                />
+                            </div>
+
                             <button
                                 onClick={handleInspectionSubmit}
-                                disabled={inspUploading}
-                                style={{ width: '100%', background: '#111827', color: '#FFF', border: 'none', borderRadius: 999, padding: '14px', fontSize: 14, fontWeight: 700, cursor: inspUploading ? 'wait' : 'pointer', opacity: inspUploading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                                disabled={inspUploading || !inspKm || !inspOilLevel || !inspVideo}
+                                style={{ width: '100%', background: (!inspKm || !inspOilLevel || !inspVideo) ? '#9CA3AF' : '#111827', color: '#FFF', border: 'none', borderRadius: 999, padding: '14px', fontSize: 14, fontWeight: 700, cursor: (inspUploading || !inspKm || !inspOilLevel || !inspVideo) ? 'not-allowed' : 'pointer', opacity: inspUploading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                             >
                                 <Upload size={16} />
-                                {inspUploading ? 'Enviando...' : 'Enviar Vistoria'}
+                                {inspUploading ? 'Enviando vídeo...' : 'Enviar Vistoria'}
                             </button>
+                            {(!inspKm || !inspOilLevel || !inspVideo) && (
+                                <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 8 }}>
+                                    Preencha KM + Óleo + Vídeo para habilitar o envio
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
